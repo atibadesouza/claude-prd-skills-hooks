@@ -1,0 +1,28 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .claude/hooks/post-commit-pitfalls.mjs",
+            "timeout": 5,
+            "statusMessage": "Checking commit for pitfalls scan..."
+          }
+        ]
+      },
+      {
+        "matcher": "ExitPlanMode",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .claude/hooks/save-plan.mjs",
+            "timeout": 5,
+            "statusMessage": "Saving plan to docs/plans/..."
+          }
+        ]
+      }
+    ]
+  }
+}
