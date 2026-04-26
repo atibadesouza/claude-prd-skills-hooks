@@ -7,7 +7,9 @@ Drop-in Claude Code template for new projects. Adds three automatic hooks and on
 | `prd-reminder.mjs` | `PostToolUse` hook on `Bash` | After any commit / migration / deploy, injects a reminder into Claude's context to check whether `docs/prd/` needs updating. Pure nudge — does not read or edit PRDs itself. |
 | `post-commit-pitfalls.mjs` | `PostToolUse` hook on `Bash` | After any `git commit`, spawns a detached headless Claude that scans the last 10 commits and updates `docs/reference/PITFALLS.md` (or `.claude/PITFALLS.md`). Also patches root `CLAUDE.md` to add a pointer if missing. Debounced to 30 minutes. |
 | `save-plan.mjs` | `PostToolUse` hook on `ExitPlanMode` | Every plan Claude finalizes is written to `docs/plans/<timestamp>-<slug>.md` with frontmatter. |
+| `publish-skill.mjs` | `Stop` hook (user-level) | At session end, syncs every folder under `~/.claude/skills/` into this repo and pushes. Detached + debounced. Drop a `.skipsync` file in any skill folder to opt it out. |
 | `quickpush` | Skill (`/quickpush`) | Stage, auto-write a commit message in repo style, commit, push. Supabase migration + edge function deploy steps included (skip if not relevant). |
+| `reviewer` | Skill (`/reviewer`) | Senior software architect that reviews another agent's plan. Proves or disproves the plan, surfaces issues, hidden assumptions, wrong patterns, and blindspots; asks clarifying questions; only approves when the plan is genuinely correct. |
 
 ## Why this exists
 
@@ -62,9 +64,56 @@ The headless Claude inherits whatever auth your `claude` CLI uses. No keys are s
 3. Writes `docs/plans/YYYY-MM-DDTHH-MM-SS-<slug>.md` with frontmatter (`created`, `session_id`, `status: proposed`).
 4. Will not overwrite existing files (timestamps make collisions unlikely anyway).
 
+### Skill auto-publish hook (user-level only)
+
+> This hook lives at `~/.claude/hooks/publish-skill.mjs` (a copy is kept in this repo for reference) and is wired in `~/.claude/settings.json` under `hooks.Stop`. It is **not** installed by `install.sh` / `install.ps1` because it pushes to GitHub on your behalf — install it deliberately.
+
+1. Fires on every `Stop` event (end of an assistant turn).
+2. Debounced to 1 minute, and only does work when a skill folder's mtime is newer than the last successful sync.
+3. Maintains a cached clone at `~/.claude/cache/claude-prd-skills-hooks/`. `git fetch` + hard-reset to `origin/main` before each sync.
+4. Copies every directory under `~/.claude/skills/` into `.claude/skills/<name>/`. Drop a `.skipsync` file in any skill folder you don't want published.
+5. Stages `.claude/skills/`, commits as `Claude Auto-Publish`, and pushes to `main`. Silent on failure; logs go to `~/.claude/cache/publish-skill.log`.
+
+#### Manual install
+
+```bash
+mkdir -p ~/.claude/hooks
+curl -fsSL https://raw.githubusercontent.com/atibadesouza/claude-prd-skills-hooks/main/.claude/hooks/publish-skill.mjs \
+  -o ~/.claude/hooks/publish-skill.mjs
+```
+
+Then merge this into `~/.claude/settings.json`:
+
+```json
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          { "type": "command", "command": "node ~/.claude/hooks/publish-skill.mjs", "timeout": 5 }
+        ]
+      }
+    ]
+  }
+}
+```
+
+Auth is whatever `gh` / `git` already uses on your machine. No tokens are stored in the repo.
+
+## Skills
+
+### `/reviewer`
+
+Senior software architect persona. Pass it a plan path, inline plan text, or nothing (it picks the latest `docs/plans/*.md`). It reads the codebase the plan touches, stress-tests assumptions, surfaces blindspots and wrong patterns, and emits exactly one verdict: **APPROVED**, **CHANGES REQUIRED**, or **NEEDS CLARIFICATION** — with concrete `path:line` evidence. Approval is rare and earned.
+
+### `/quickpush`
+
+Stage + commit (auto-message in repo style if none given) + push. Includes Supabase migration push and edge-function deploy steps that no-op cleanly in projects without `supabase/`.
+
 ## Notes
 
-- Both hooks fail silently. They will never break your Claude session.
+- All hooks fail silently. They will never break your Claude session.
 - The pitfalls hook spawns a sub-Claude — it costs tokens. The 30-min debounce keeps that cost bounded.
+- The publish-skill hook does network I/O (git push) on each sync. The 1-min debounce + mtime check keep it cheap.
 - Quickpush's Supabase steps are no-ops in projects without `supabase/`. Trim them out if you want a leaner skill.
 - Hooks expect Node.js to be on PATH (the scripts are `.mjs`, run via `node`).
