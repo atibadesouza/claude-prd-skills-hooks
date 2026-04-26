@@ -29,7 +29,7 @@ process.stdin.on('end', () => {
       '(?:source\\s+\\S+\\s*&&\\s*)?' +
       '(?:npx\\s+)?' +
       '(?:' +
-        'git\\b[^;&|(\\n]*\\bcommit\\b' + '|' +
+        'git\\b[^;&|(\\n]*\\scommit\\b' + '|' +
         'supabase\\b[^;&|(\\n]*\\b(?:db\\s+push|functions\\s+deploy)\\b' + '|' +
         'vercel\\s+(?:deploy|--prod)\\b' + '|' +
         'npm\\s+publish\\b' +
