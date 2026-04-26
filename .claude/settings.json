@@ -6,6 +6,12 @@
         "hooks": [
           {
             "type": "command",
+            "command": "node .claude/hooks/prd-reminder.mjs",
+            "timeout": 5,
+            "statusMessage": "Checking PRD maintenance..."
+          },
+          {
+            "type": "command",
             "command": "node .claude/hooks/post-commit-pitfalls.mjs",
             "timeout": 5,
             "statusMessage": "Checking commit for pitfalls scan..."

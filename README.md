@@ -1,9 +1,10 @@
 # claude-prd-skills-hooks
 
-Drop-in Claude Code template for new projects. Adds two automatic hooks and one slash command:
+Drop-in Claude Code template for new projects. Adds three automatic hooks and one slash command:
 
 | Item | Type | What it does |
 |---|---|---|
+| `prd-reminder.mjs` | `PostToolUse` hook on `Bash` | After any commit / migration / deploy, injects a reminder into Claude's context to check whether `docs/prd/` needs updating. Pure nudge — does not read or edit PRDs itself. |
 | `post-commit-pitfalls.mjs` | `PostToolUse` hook on `Bash` | After any `git commit`, spawns a detached headless Claude that scans the last 10 commits and updates `docs/reference/PITFALLS.md` (or `.claude/PITFALLS.md`). Also patches root `CLAUDE.md` to add a pointer if missing. Debounced to 30 minutes. |
 | `save-plan.mjs` | `PostToolUse` hook on `ExitPlanMode` | Every plan Claude finalizes is written to `docs/plans/<timestamp>-<slug>.md` with frontmatter. |
 | `quickpush` | Skill (`/quickpush`) | Stage, auto-write a commit message in repo style, commit, push. Supabase migration + edge function deploy steps included (skip if not relevant). |
@@ -35,6 +36,14 @@ git clone https://github.com/atibadesouza/claude-prd-skills-hooks.git $env:TEMP\
 Copy `.claude/hooks/`, `.claude/skills/`, and `.claude/settings.json` into the target project's `.claude/` dir. If the target already has a `settings.json`, merge the `hooks.PostToolUse` entries by hand.
 
 ## How the hooks work
+
+### PRD reminder hook
+
+1. Fires on every `Bash` tool call.
+2. If the command matches `git commit`, `db push`, `functions deploy`, `vercel deploy`, or `npm publish`, emits an `additionalContext` reminder telling Claude to check whether any PRD in `docs/prd/` needs updating.
+3. Does NOT read PRDs, does NOT edit anything, does NOT spawn a sub-Claude. The in-session Claude does the thinking once it sees the reminder.
+
+Trim or expand the regex inside `prd-reminder.mjs` to match the deploy/publish commands your project actually uses.
 
 ### Pitfalls hook
 

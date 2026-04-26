@@ -17,6 +17,7 @@ fi
 mkdir -p "$TARGET/.claude/hooks"
 mkdir -p "$TARGET/.claude/skills"
 
+cp "$SRC/.claude/hooks/prd-reminder.mjs"         "$TARGET/.claude/hooks/"
 cp "$SRC/.claude/hooks/post-commit-pitfalls.mjs" "$TARGET/.claude/hooks/"
 cp "$SRC/.claude/hooks/save-plan.mjs"            "$TARGET/.claude/hooks/"
 
@@ -34,6 +35,7 @@ mkdir -p "$TARGET/docs/plans"
 
 echo "Installed Claude hooks + quickpush skill into $TARGET/.claude/"
 echo "Hooks installed:"
+echo "  - prd-reminder.mjs          (PostToolUse / Bash → reminds to update PRDs)"
 echo "  - post-commit-pitfalls.mjs  (PostToolUse / Bash → updates PITFALLS.md)"
 echo "  - save-plan.mjs             (PostToolUse / ExitPlanMode → docs/plans/*.md)"
 echo "Skill installed: quickpush"

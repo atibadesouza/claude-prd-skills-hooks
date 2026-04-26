@@ -18,6 +18,7 @@ $null = New-Item -ItemType Directory -Force -Path "$Target\.claude\hooks"
 $null = New-Item -ItemType Directory -Force -Path "$Target\.claude\skills"
 $null = New-Item -ItemType Directory -Force -Path "$Target\docs\plans"
 
+Copy-Item "$Src\.claude\hooks\prd-reminder.mjs"         "$Target\.claude\hooks\" -Force
 Copy-Item "$Src\.claude\hooks\post-commit-pitfalls.mjs" "$Target\.claude\hooks\" -Force
 Copy-Item "$Src\.claude\hooks\save-plan.mjs"            "$Target\.claude\hooks\" -Force
 Copy-Item "$Src\.claude\skills\quickpush"               "$Target\.claude\skills\" -Recurse -Force
@@ -32,6 +33,7 @@ if (Test-Path $Settings) {
 
 Write-Host "Installed Claude hooks + quickpush skill into $Target\.claude\"
 Write-Host "Hooks installed:"
+Write-Host "  - prd-reminder.mjs          (PostToolUse / Bash -> reminds to update PRDs)"
 Write-Host "  - post-commit-pitfalls.mjs  (PostToolUse / Bash -> updates PITFALLS.md)"
 Write-Host "  - save-plan.mjs             (PostToolUse / ExitPlanMode -> docs\plans\*.md)"
 Write-Host "Skill installed: quickpush"
