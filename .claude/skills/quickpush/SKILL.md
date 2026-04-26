@@ -26,7 +26,7 @@ Perform a quick commit and push with these steps:
    )"
    ```
 6. Push to the current branch with `git push`. If there is no upstream, use `git push -u origin HEAD`.
-7. (Optional, only if the project uses Supabase) Push Supabase DB changes:
+7. Push Supabase DB changes:
    a. Run `source .env && npx supabase migration list --linked` to check for unpushed migrations (local column has value, remote column is empty).
    b. If there are unpushed migrations, run `source .env && npx supabase db push --linked` (add `--include-all` if prompted).
    c. If push fails due to remote-only migrations, repair them with `npx supabase migration repair --status reverted <version> --linked` then retry.
