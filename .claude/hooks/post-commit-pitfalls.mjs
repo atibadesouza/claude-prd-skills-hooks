@@ -56,12 +56,16 @@ Steps:
 
 Be terse. Do not ask questions. Do not write a plan. Just edit the files and exit.`;
 
-    const child = spawn('claude', ['-p', prompt], {
+    // Pass the prompt via stdin (not argv) and invoke as a single shell
+    // command string. This sidesteps Node 24's DEP0190 deprecation that
+    // fires when an args array is combined with shell: true.
+    const child = spawn('claude -p', {
       detached: true,
-      stdio: 'ignore',
+      stdio: ['pipe', 'ignore', 'ignore'],
       cwd: root,
-      shell: process.platform === 'win32',
+      shell: true,
     });
+    child.stdin.end(prompt);
     child.unref();
 
     process.stdout.write(JSON.stringify({
