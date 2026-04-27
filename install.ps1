@@ -22,6 +22,7 @@ Copy-Item "$Src\.claude\hooks\prd-reminder.mjs"         "$Target\.claude\hooks\"
 Copy-Item "$Src\.claude\hooks\post-commit-pitfalls.mjs" "$Target\.claude\hooks\" -Force
 Copy-Item "$Src\.claude\hooks\save-plan.mjs"            "$Target\.claude\hooks\" -Force
 Copy-Item "$Src\.claude\skills\quickpush"               "$Target\.claude\skills\" -Recurse -Force
+Copy-Item "$Src\.claude\skills\reviewer"                "$Target\.claude\skills\" -Recurse -Force
 
 $Settings = "$Target\.claude\settings.json"
 if (Test-Path $Settings) {
@@ -36,4 +37,4 @@ Write-Host "Hooks installed:"
 Write-Host "  - prd-reminder.mjs          (PostToolUse / Bash -> reminds to update PRDs)"
 Write-Host "  - post-commit-pitfalls.mjs  (PostToolUse / Bash -> updates PITFALLS.md)"
 Write-Host "  - save-plan.mjs             (PostToolUse / ExitPlanMode -> docs\plans\*.md)"
-Write-Host "Skill installed: quickpush"
+Write-Host "Skills installed: quickpush, reviewer"
