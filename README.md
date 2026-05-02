@@ -13,6 +13,7 @@ Drop-in Claude Code template for new projects. Adds three automatic hooks and on
 | `reviewer` | Skill (`/reviewer`) | Senior software architect that reviews another agent's plan. Proves or disproves the plan, surfaces issues, hidden assumptions, wrong patterns, and blindspots; asks clarifying questions; only approves when the plan is genuinely correct. |
 | `frontend-design` | Skill (third-party, from [`anthropics/skills`](https://github.com/anthropics/skills)) | Builds distinctive, production-grade frontend interfaces. Triggers on requests to build web components, pages, artifacts, or applications — avoids generic AI aesthetics. |
 | `ui-ux-pro-max` | Skill (third-party, from [`nextlevelbuilder/ui-ux-pro-max-skill`](https://github.com/nextlevelbuilder/ui-ux-pro-max-skill)) | UI/UX design intelligence: 50+ styles, 161 color palettes, 57 font pairings, 25 chart types across React/Next/Vue/Svelte/SwiftUI/Flutter/Tailwind/shadcn. **Heads-up:** Gen flags this skill High Risk (Snyk: Low; Socket: 0 alerts). Review before running. |
+| `pdf` | Skill (third-party, from [`anthropics/skills`](https://github.com/anthropics/skills)) | Read/extract text and tables from PDFs, merge/split, rotate pages, watermark, fill forms, encrypt/decrypt, extract images, OCR scanned PDFs. **Heads-up:** Snyk flags this skill High Risk (Gen: Safe; Socket: 0 alerts) — likely from PDF-parsing dependencies with known CVEs. Review before running. |
 
 ## Why this exists
 
@@ -162,13 +163,16 @@ Senior software architect persona. Pass it a plan path, inline plan text, or not
 
 Stage + commit (auto-message in repo style if none given) + push. Includes Supabase migration push and edge-function deploy steps that no-op cleanly in projects without `supabase/`.
 
-### `/frontend-design` and `/ui-ux-pro-max` (third-party)
+### `/frontend-design`, `/ui-ux-pro-max`, and `/pdf` (third-party)
 
 Auto-published from `~/.claude/skills/` by the `publish-skill` hook. Originally installed globally with the [`skills`](https://skills.sh) CLI:
 
 ```powershell
 # Anthropic's frontend-design (Safe / Low Risk)
 npx -y skills add anthropics/skills -g --agent claude-code --skill frontend-design -y --copy
+
+# Anthropic's pdf (Snyk flags High Risk — review before use)
+npx -y skills add anthropics/skills -g --agent claude-code --skill pdf -y --copy
 
 # nextlevelbuilder's ui-ux-pro-max (Gen flags High Risk — review before use)
 npx -y skills add nextlevelbuilder/ui-ux-pro-max-skill -g --agent claude-code --skill ui-ux-pro-max -y --copy
