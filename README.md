@@ -8,6 +8,7 @@ Drop-in Claude Code template for new projects. Adds three automatic hooks and on
 | `post-commit-pitfalls.mjs` | `PostToolUse` hook on `Bash` | After any `git commit`, spawns a detached headless Claude that scans the last 10 commits and updates `docs/reference/PITFALLS.md` (or `.claude/PITFALLS.md`). Also patches root `CLAUDE.md` to add a pointer if missing. Debounced to 30 minutes. |
 | `save-plan.mjs` | `PostToolUse` hook on `ExitPlanMode` | Every plan Claude finalizes is written to `docs/plans/<timestamp>-<slug>.md` with frontmatter. |
 | `publish-skill.mjs` | `Stop` hook (user-level) | At session end, syncs every folder under `~/.claude/skills/` into this repo and pushes. Detached + debounced. Drop a `.skipsync` file in any skill folder to opt it out. |
+| `sound-notify` | `Stop` + `Notification` hooks (user-level, Windows) | Plays a Windows system sound when Claude finishes a turn (Asterisk "ding") or needs your input/permission (Question "bell"). Inline PowerShell, no script file. Distinct sounds so you can tell completion vs. needs-input apart by ear. |
 | `quickpush` | Skill (`/quickpush`) | Stage, auto-write a commit message in repo style, commit, push. Supabase migration + edge function deploy steps included (skip if not relevant). |
 | `reviewer` | Skill (`/reviewer`) | Senior software architect that reviews another agent's plan. Proves or disproves the plan, surfaces issues, hidden assumptions, wrong patterns, and blindspots; asks clarifying questions; only approves when the plan is genuinely correct. |
 
@@ -99,6 +100,55 @@ Then merge this into `~/.claude/settings.json`:
 ```
 
 Auth is whatever `gh` / `git` already uses on your machine. No tokens are stored in the repo.
+
+### Sound notify hook (user-level only, Windows)
+
+> Inline PowerShell wired in `~/.claude/settings.json` — no script file to install. Plays a Windows system sound on each `Stop` (turn complete) and `Notification` (Claude is waiting on you) event so you can step away from the terminal and still know when to look back.
+
+1. `Stop` fires `[System.Media.SystemSounds]::Asterisk.Play()` — short "ding" indicating the turn finished.
+2. `Notification` fires `[System.Media.SystemSounds]::Question.Play()` — distinct "bell" indicating Claude needs input or a permission decision.
+3. Both run with `"shell": "powershell"` and `"async": true` so they never block the session. `Play()` itself is non-blocking, and the system sounds respect your Windows sound theme (mute the system to silence them).
+
+Pick a different `.wav` (e.g. `chimes.wav`, `tada.wav`) by swapping the inline command for `(New-Object Media.SoundPlayer 'C:\Windows\Media\chimes.wav').Play()`.
+
+#### Manual install
+
+Merge this into `~/.claude/settings.json` (preserve any existing `Stop`/`Notification` entries — append, don't replace):
+
+```json
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "shell": "powershell",
+            "command": "[System.Media.SystemSounds]::Asterisk.Play()",
+            "async": true,
+            "timeout": 2
+          }
+        ]
+      }
+    ],
+    "Notification": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "shell": "powershell",
+            "command": "[System.Media.SystemSounds]::Question.Play()",
+            "async": true,
+            "timeout": 2
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+After saving, open `/hooks` in Claude Code once to force a config reload (the settings watcher may not pick up new hook events mid-session).
 
 ## Skills
 
