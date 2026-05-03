@@ -7,6 +7,7 @@ Drop-in Claude Code template for new projects. Adds three automatic hooks and on
 | `prd-reminder.mjs` | `PostToolUse` hook on `Bash` | After any commit / migration / deploy, injects a reminder into Claude's context to check whether `docs/prd/` needs updating. Pure nudge — does not read or edit PRDs itself. |
 | `post-commit-pitfalls.mjs` | `PostToolUse` hook on `Bash` | After any `git commit`, spawns a detached headless Claude that scans the last 10 commits and updates `docs/reference/PITFALLS.md` (or `.claude/PITFALLS.md`). Also patches root `CLAUDE.md` to add a pointer if missing. Debounced to 30 minutes. |
 | `save-plan.mjs` | `PostToolUse` hook on `ExitPlanMode` | Every plan Claude finalizes is written to `docs/plans/<timestamp>-<slug>.md` with frontmatter. |
+| `supabase-cli-check.mjs` | `SessionStart` hook | At session start in any project that uses Supabase (detected via `supabase/` dir or `@supabase/*` in package.json), checks whether the Supabase CLI is on PATH. If missing, injects an `additionalContext` reminder with platform-specific install commands. Silent in non-Supabase projects and when the CLI is already installed. Mirrors the Vercel CLI session-start pattern. |
 | `publish-skill.mjs` | `Stop` hook (user-level) | At session end, syncs every folder under `~/.claude/skills/` into this repo and pushes. Detached + debounced. Drop a `.skipsync` file in any skill folder to opt it out. |
 | `sound-notify` | `Stop` + `Notification` hooks (user-level, Windows) | Plays a Windows system sound when Claude finishes a turn (Asterisk "ding") or needs your input/permission (Question "bell"). Inline PowerShell, no script file. Distinct sounds so you can tell completion vs. needs-input apart by ear. |
 | `quickpush` | Skill (`/quickpush`) | Stage, auto-write a commit message in repo style, commit, push. Supabase migration + edge function deploy steps included (skip if not relevant). |
@@ -67,6 +68,18 @@ The headless Claude inherits whatever auth your `claude` CLI uses. No keys are s
 2. Reads `tool_input.plan` from the hook event JSON.
 3. Writes `docs/plans/YYYY-MM-DDTHH-MM-SS-<slug>.md` with frontmatter (`created`, `session_id`, `status: proposed`).
 4. Will not overwrite existing files (timestamps make collisions unlikely anyway).
+
+### Supabase CLI check hook
+
+1. Fires on every `SessionStart`.
+2. Bails silently unless the project actually uses Supabase. Detection:
+   - a `supabase/` directory at the repo root, OR
+   - a `@supabase/*` dependency in `package.json` (`dependencies` or `devDependencies`).
+3. Runs `supabase --version` with a 2-second timeout. If the binary is on PATH and exits 0, the hook exits silently — costs zero tokens.
+4. If the CLI is missing or fails, emits a one-shot `additionalContext` reminder with install commands for macOS/Linux (Homebrew), npm (any OS), and Windows (Scoop). Mentions the CLI subcommands the user is most likely to hit first (`db push`, `functions serve`, `functions deploy`, `secrets set`, `db reset`).
+5. Pure check + reminder. Does not install anything itself.
+
+This mirrors the Vercel plugin's CLI install reminder so that a Supabase-using project gets the same gentle nudge before the user runs into a `command not found`.
 
 ### Skill auto-publish hook (user-level only)
 
