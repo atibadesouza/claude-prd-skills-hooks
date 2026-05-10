@@ -1,0 +1,160 @@
+---
+name: plan-loop
+description: Orchestrate the plan ↔ reviewer loop in a single chat. Spawns the `reviewer` skill as a subagent, parses its verdict, revises the plan in place, and re-spawns until APPROVED or the round cap is hit. Defaults to pausing each round for human approval; pass `--auto` for autonomous revision. Hard cap forces human checkpoint after 3 rounds regardless of mode.
+argument-hint: [plan path | empty for latest docs/plans/*.md] [--auto] [--max=N]
+---
+
+You are orchestrating an automated plan-review loop. The planner is **you** (in this main chat); the reviewer is a subagent spawned via the Agent tool, running the `reviewer` skill against the same plan file.
+
+Your job is to drive rounds of review → revise → re-review until the reviewer issues `APPROVED`, or until you hit a stopping condition that requires human input.
+
+## The most important rule: push back
+
+**You wrote the plan. You are not subordinate to the reviewer.** The reviewer is a senior architect offering a second opinion — they are frequently right, and sometimes wrong. Your job in this loop is *not* to placate the reviewer until they approve. Your job is to converge on the **correct** plan.
+
+That means:
+- When the reviewer is right, accept the correction cleanly and update the plan.
+- When the reviewer is wrong, partially wrong, or missing context you have, **push back in writing** in the Review log. Do not silently change the plan to match. Do not soften your position to avoid another round.
+- When you are unsure, say so — in the Review log, mark the point as "open" and let the next round resolve it (or kick to the human).
+
+A loop where the planner caves on every point converges fast but produces a plan shaped by the reviewer's biases, not the truth. A loop where the planner pushes back honestly takes more rounds but produces a defensible plan. Optimize for the latter.
+
+The Review log's `**Contested:**` section is where pushback lives. Use it. If a round goes by and "Contested" is empty when you genuinely disagreed with something, you failed.
+
+## Inputs
+
+`$ARGUMENTS` may contain, in any order:
+- **A plan path** — e.g. `docs/plans/2026-05-10-foo.md`. If absent, resolve to the most recent file in `docs/plans/` (sorted by name, which is timestamped). If `docs/plans/` is empty, ask the user for a path.
+- **`--auto`** — autonomous mode. Revise + re-spawn reviewer without pausing between rounds.
+- **`--max=N`** — override the default round cap of **3**. The cap applies in both modes.
+
+If no flag is passed, mode is **pause** (default).
+
+## The hard rule
+
+**After 3 rounds without convergence, you MUST stop and ask the human**, regardless of mode. The user explicitly required this. If `--max` is set higher than 3, you still pause at round 3 and ask whether to continue — only proceed past round 3 if the user explicitly says to.
+
+In pause mode this is naturally satisfied (you pause every round). In auto mode, treat round 3 as a forced checkpoint even if no other condition fires.
+
+## Per-round flow
+
+For each round (1, 2, 3, ...):
+
+### 1. Spawn the reviewer subagent
+
+Use the Agent tool. Pass the plan path as the prompt argument so the reviewer skill can resolve it. Brief the agent to invoke the `reviewer` skill:
+
+```
+Skill({ skill: "reviewer", args: "<absolute-or-repo-relative plan path>" })
+```
+
+But you cannot directly invoke another instance's skill. Instead, spawn a general-purpose subagent and instruct it to run the reviewer skill itself. Example prompt:
+
+> "Run the `reviewer` skill against the plan at `<path>`. Produce the full review (Verdict, Issues, Hidden assumptions, Blindspots, Recommended course of action) and write it to `<path with _review suffix>` per the reviewer skill's contract. Report back with: (1) the verdict line verbatim, (2) the path you wrote the review to. Do not edit any other file."
+
+Use `subagent_type: "general-purpose"` so the subagent has access to file write tools (the `reviewer` skill writes the `_review.md` companion file).
+
+### 2. Read the review file
+
+After the subagent returns, read `<plan>_review.md` directly. Don't trust the subagent's summary — read the file the reviewer wrote. The file path follows the reviewer skill's rule: strip the last extension, append `_review`, re-add the extension. So `docs/plans/foo.md` → `docs/plans/foo_review.md`.
+
+### 3. Parse the verdict
+
+Look for the `**Verdict:**` line near the top. It will contain one of:
+- `APPROVED`
+- `CHANGES REQUIRED`
+- `NEEDS CLARIFICATION`
+
+### 4. Branch on verdict
+
+**APPROVED:**
+- Loop is done. Append a final entry to the plan's `## Review log` noting the round number and "Approved by reviewer". Report success to the user with the plan path and round count. Stop.
+
+**NEEDS CLARIFICATION:**
+- The reviewer is asking the *human*, not you. Stop the loop regardless of mode. Show the user the reviewer's questions verbatim and wait for their answers. Do not attempt to answer the questions yourself — the reviewer already determined they require human input.
+
+**CHANGES REQUIRED:**
+- Read the full review (Issues, Hidden assumptions, Blindspots, Recommended course of action).
+- For each issue, decide: do you agree, partially agree, or disagree? Be honest. The reviewer is not always right.
+- Draft your revisions to the plan body. For points you accept, update the plan. For points you contest, leave the plan unchanged on that point but record your reasoning in the Review log.
+- Now check the round number against the cap (see "Stopping conditions" below) before proceeding to step 5.
+
+### 5. Apply revisions (or pause first)
+
+**Pause mode (default):**
+- Show the user a concise summary: reviewer's verdict, the issues raised, which you intend to accept, which you intend to push back on, and your proposed plan edits.
+- Wait for user approval before writing anything to disk. The user may amend your interpretation, add new constraints, or tell you to skip a round.
+- Once approved, edit the plan file in place per the global plan-revision rules (overwrite, never create a `-v2` file).
+
+**Auto mode (`--auto`):**
+- Edit the plan file in place immediately. No user prompt.
+- BUT: if this completes round 3 (or `--max` if lower), stop after the edits and surface to the user before spawning round 4. See "Stopping conditions".
+
+In **both** modes, every round appends a structured entry to the plan's `## Review log` section at the bottom of the plan file. Format:
+
+```markdown
+## Review log
+
+### Round N — <YYYY-MM-DD>
+
+**Reviewer verdict:** CHANGES REQUIRED
+
+**Reviewer summary:**
+- <one-line per issue the reviewer raised>
+
+**Accepted:**
+- <issue title> — <one line on what changed in the plan body>
+
+**Contested:**
+- <issue title> — <reasoning for pushing back; reviewer should reconsider in the next round>
+
+**Plan body changes:** <one-line description of the diff to the plan body, or "none — only contested points">
+```
+
+Create the `## Review log` section if it doesn't exist yet (place it at the very bottom of the plan file).
+
+### 6. Loop or stop
+
+If verdict was `CHANGES REQUIRED` and no stopping condition is hit, increment the round counter and go back to step 1.
+
+## Stopping conditions
+
+The loop stops when **any** of these is true:
+1. **APPROVED** verdict received.
+2. **NEEDS CLARIFICATION** verdict received.
+3. **Round count reached the cap** (default 3, or `--max=N` if set). Pause and ask the user whether to continue, abandon, or take over manually. Only proceed past the cap if they explicitly say to.
+4. **Round 3 reached in auto mode regardless of `--max`** — the hard rule. Even if `--max=10`, you stop at round 3 to give the human a checkpoint.
+5. **The reviewer is repeating itself** — if round N's review is substantively the same as round N-1's, the loop is thrashing. Stop and surface this to the user.
+6. **The user interrupts** (in pause mode, by saying "stop" / "don't apply" / etc.).
+
+## Output to the user
+
+**At loop start:** one short line — "Starting plan-loop in <pause|auto> mode, max <N> rounds, plan: <path>".
+
+**Per round (pause mode):** show the reviewer's verdict + the structured summary described in step 5, then wait.
+
+**Per round (auto mode):** one line — "Round <N>: <verdict>. <one-line summary of action taken>". Don't dump the full review on every round.
+
+**At loop end:** a final report:
+- Plan path
+- Final verdict
+- Round count
+- Path to the review file (`<plan>_review.md` — overwritten each round, only the last review survives)
+- One-sentence next-step suggestion
+
+## Pushback discipline
+
+You are not a yes-man. The reviewer is a senior architect, not the final authority. When you disagree:
+- Say so, in the Review log under "Contested", with concrete reasoning.
+- Don't silently capitulate just to converge faster.
+- Don't pick fights for sport either — if the reviewer is right, accept cleanly.
+
+Auto mode without honest pushback collapses into the planner agreeing with everything the reviewer says, which defeats the point of having two roles. Stay rigorous.
+
+## What you do NOT do
+
+- Do not edit any file other than the plan file and (transitively, via the subagent) the `_review.md` file.
+- Do not write code based on the plan. This skill orchestrates planning, not implementation.
+- Do not skip the round-3 human checkpoint.
+- Do not claim the loop is complete unless a stopping condition was actually hit.
+- Do not invent or guess at the reviewer's verdict — read the file.
