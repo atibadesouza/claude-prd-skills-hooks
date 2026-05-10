@@ -24,11 +24,23 @@ The Review log's `**Contested:**` section is where pushback lives. Use it. If a 
 ## Inputs
 
 `$ARGUMENTS` may contain, in any order:
-- **A plan path** — e.g. `docs/plans/2026-05-10-foo.md`. If absent, resolve to the most recent file in `docs/plans/` (sorted by name, which is timestamped). If `docs/plans/` is empty, ask the user for a path.
+- **A plan path** — e.g. `docs/plans/2026-05-10-foo.md`.
 - **`--auto`** — autonomous mode. Revise + re-spawn reviewer without pausing between rounds.
 - **`--max=N`** — override the default round cap of **3**. The cap applies in both modes.
 
 If no flag is passed, mode is **pause** (default).
+
+### Resolving the plan path when none is given
+
+When the user does not pass a path, resolve in this order — **do not skip ahead**:
+
+1. **Plan from this conversation.** If you (the planner) wrote or edited a plan file in `docs/plans/` earlier in this same chat, use that path. This is the common case: the user just asked you to plan something, you saved it to `docs/plans/YYYY-MM-DD-<slug>.md` per their global instructions, and now they want to review *that* plan — not whatever else is sitting in the folder. Look back through the conversation for a plan you authored or revised; if there's exactly one, use it. If there are multiple, ask the user which one (don't guess by recency).
+
+2. **Latest in `docs/plans/`.** Only if no plan from this conversation exists, fall back to the most recent file in `docs/plans/` (sorted by name, which is timestamped). Before spawning the reviewer, tell the user which plan you resolved to and confirm it's the right one — the latest file might not be what they meant.
+
+3. **Empty / no `docs/plans/` directory.** Ask the user for a path. Do not invent one.
+
+Always echo the resolved path back to the user at loop start so they can catch a wrong resolution before any rounds run.
 
 ## The hard rule
 
