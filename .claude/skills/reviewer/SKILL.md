@@ -39,6 +39,36 @@ For every claim the plan makes, ask: *how do I know this is true?* Pay extra att
 - Failure modes: what happens when the network drops, the LLM returns garbage, the webhook 500s, the user closes the browser?
 - Money/data loss: any path that sends emails, charges cards, mutates production records.
 
+#### 3a. Standing audit questions (apply to every plan)
+
+These five are not optional — they are the load-bearing questions for any plan that touches data, deployments, or load-bearing claims. They catch the failure modes that have repeatedly slipped past plans that otherwise looked correct.
+
+**Q1 — Data-volume reality**: *Does the data this plan operates on actually exist in production today?* If the plan has a backfill / LLM-extraction / calibration / precision-spot-check component AND production has <50 rows of the relevant kind, has the plan bifurcated **Track A** (schema + tooling ships now) vs **Track B** (data-dependent halves deferred until data arrives)? "Infrastructure ready" is not the same as "value delivered." A plan that confuses the two ships a backfill engine against three placeholder test rows and calls it success. If volume is low, the plan must pre-bifurcate — don't wait for the founder or a later round to surface it.
+
+**Q2 — Per-artifact verification probe matching**: Are the plan's "is X deployed?" / "is X applied?" / "is X populated?" verification probes matched to the **actual type of artifact**? The probe surface differs per artifact and a wrong probe returns false-green (looks confirmed when it isn't):
+
+| Artifact | Right probe |
+|---|---|
+| Postgres tables, views, matviews | `SELECT to_regclass('schema.name')` returns non-null; `information_schema.tables` |
+| Postgres functions (PL/pgSQL, SQL) | `SELECT proname FROM pg_proc WHERE proname = 'name'` |
+| Postgres triggers | `SELECT tgname FROM pg_trigger WHERE tgrelid = 'schema.table'::regclass` |
+| RLS enabled | `SELECT relrowsecurity FROM pg_class WHERE relname = 'table'` |
+| RLS policies | `SELECT polname FROM pg_policy WHERE polrelid = 'schema.table'::regclass` |
+| Indexes | `SELECT indexname FROM pg_indexes WHERE schemaname='X'` |
+| Edge functions (Deno runtime, deployed via `supabase functions deploy`) | Supabase MCP `list_edge_functions` OR `supabase functions list` OR HTTP probe each URL (200/401/404). **NOT `pg_proc`** — that only covers Postgres functions, not Deno edge functions. |
+| Vault secrets | `SELECT name FROM vault.secrets WHERE name = 'X'` |
+| pg_cron jobs | `SELECT jobname, schedule FROM cron.job WHERE jobname = 'X'` |
+| PostgREST schema exposure | `curl -s '<project>/rest/v1/?apikey=<anon>' \| jq '.definitions \| keys'` |
+| pgvector indexes | `SELECT indexname FROM pg_indexes WHERE indexdef LIKE '%hnsw%'` |
+
+A plan that probes `pg_proc` for an edge function returns "not deployed" regardless of state — the false-green wears the same shape as a true success.
+
+**Q3 — Claims-vs-code verification**: Does the plan's prose claim a pattern, gotcha, or convention is "honored" / "already addressed" / "already in place"? If yes, **read the actual committed code at the cited line range** — don't trust the plan-prose, the `CLAUDE.md` claim, or the memory entry. Documentation that says "honored" is a CLAIM, not verification. A pattern can be documented as honored while live code violates it (e.g., a middleware file that reads `getUser().app_metadata` despite docs claiming direct-cookie-decode is the pattern). The reviewer's job is to break this assumption — open the file at `file:line` and check.
+
+**Q4 — Verification-advice realism**: Where the plan asserts "X is required" or "must do X" for environment setup (auth scopes, CLI commands, dashboard toggles, infrastructure prerequisites), is X **verified to be necessary in THIS specific repo + token + workspace + tier + environment** — or is it cited from convention? Convention-cited claims should be phrased as "try X first; verify it applies" not "X is required." Convention is right MOST of the time and wrong ENOUGH of the time that asserting it unconditionally produces stalled execution + wasted work. Example: a plan asserting "gh auth refresh -s workflow is required to push CI workflow files" may hold for some token configs and not others; the right phrasing is "if `git push` fails on the workflow file, try `gh auth refresh -s workflow`."
+
+**Q5 — Load-bearing-module dependency check**: Does the plan pin any existing module / file / function / shared library as load-bearing (e.g., "use the existing `_shared/X.ts`")? If yes, **read X's source** and verify its actual dependencies exist — backing tables, env vars, sibling modules, secrets in Vault, schemas, etc. A plan that pins `rate-limit.ts` as the carrier but doesn't schedule the `rate_limits` table that module reads will silent-fail-open at runtime (the module catches the missing-table error and returns null, bypassing the limit). Pin-without-reconcile is the same class of failure as live-code-claims-vs-documentation-claims (Q3) — the assumption isn't in the plan body; it's in code the plan assumes exists.
+
 ### 4. Look for blindspots
 Things the plan probably *didn't* think about:
 - **Observability** — will failures be visible? Logs, alerts, status fields, the `workflow_logs` table for n8n?
