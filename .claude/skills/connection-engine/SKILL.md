@@ -23,7 +23,11 @@ python scripts/connengine.py sync-themes       # themes/*.md  -> athenaai.ce_the
 python scripts/connengine.py embed-scan        # re-embed only drifted rows (text_sha != embedded_sha); OFF the hot path
 python scripts/connengine.py propose <ref>     # surface connections for an artifact ref (direct + semantic + 2-hop)
 python scripts/connengine.py verdict <conn_id> <confirmed|rejected|refined|void|tombstone> <actor> "<reason>"
+python scripts/connengine.py cost            # OpenAI spend to date: total + by op + by day (per environment)
 ```
+
+## Cost tracking
+Every paid call (today: OpenAI embeddings) records its real token usage + cost to `athenaai.ce_usage` (per-environment by construction — each environment's schema tracks its own spend, ready for partner billing). Prices live in `connengine.PRICES` (update if a model/price changes; stored rows keep the cost computed at call time). `cost` aggregates it. Embedding spend is tiny (`text-embedding-3-small` ≈ $0.02/1M tokens — a full-Brain backfill is ~a cent or two); tokens are the real signal at this scale.
 
 ## How it works (so you can explain/operate it)
 - **Themes are M:N.** An artifact carries many themes (the reuse mechanism); a theme has many artifacts (the cluster). Membership = `ce_artifact_themes` (explicit tag or semantic match).
