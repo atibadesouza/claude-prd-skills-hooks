@@ -21,13 +21,18 @@ Before surfacing or ranking connections, **state the active environment's bindin
 python scripts/connengine.py doctor            # health check: pgvector, OpenAI embed round-trip, stale count
 python scripts/connengine.py sync-themes       # themes/*.md  -> athenaai.ce_themes (run after editing a theme doc)
 python scripts/connengine.py embed-scan        # re-embed only drifted rows (text_sha != embedded_sha); OFF the hot path
+python scripts/connengine.py ingest-inbox      # read scratchpad/inbox/*.md -> artifacts + themes + triggers + connections
+python scripts/connengine.py digest            # constraint (+staleness) · due date-triggers · watched conditions · new connections · cost
 python scripts/connengine.py propose <ref>     # surface connections for an artifact ref (direct + semantic + 2-hop)
 python scripts/connengine.py verdict <conn_id> <confirmed|rejected|refined|void|tombstone> <actor> "<reason>"
 python scripts/connengine.py cost            # OpenAI spend to date: total + by op + by day (per environment)
 ```
 
-## Cost tracking
-Every paid call (today: OpenAI embeddings) records its real token usage + cost to `athenaai.ce_usage` (per-environment by construction — each environment's schema tracks its own spend, ready for partner billing). Prices live in `connengine.PRICES` (update if a model/price changes; stored rows keep the cost computed at call time). `cost` aggregates it. Embedding spend is tiny (`text-embedding-3-small` ≈ $0.02/1M tokens — a full-Brain backfill is ~a cent or two); tokens are the real signal at this scale.
+## Captures & time-triggers (Phase 2)
+Loose captures live in `scratchpad/inbox/*.md` (front-matter + body; see that folder's README). `ingest-inbox` turns each into a `ce_artifacts` row, attaches explicit (front-matter) + semantic themes, stores its `trigger` in `ce_triggers`, and logs candidate connections. **Date triggers** fire in the `digest` once due; **condition triggers** are listed as "watching" and surface naturally via semantic `propose` (the capture body is embedded). Run `ingest-inbox` after dropping captures (off the hot path), then `digest`.
+
+## Cost tracking (workspace-wide)
+Every paid call by **any** tool records to the shared per-environment ledger `<env>.api_usage` via `scripts/usage.py` → `usage.record(source, provider, model, op, tokens_in, tokens_out)`. The engine records its OpenAI embeds (`source='connection-engine'`); **Athena should record its LLM calls the same way** (write to `athenaai.api_usage` via its pooler — see `scripts/sql/connections.sql` for the columns; not yet wired, separate repo). Prices live in `usage.PRICES` (per-token input/output; stored rows keep the cost at call time). `cost` / `python scripts/usage.py` aggregate by source + day. Per-environment by construction → doubles as per-partner billing. Embedding spend is tiny ($0.02/1M tokens); tokens are the real signal until a full-Brain backfill.
 
 ## How it works (so you can explain/operate it)
 - **Themes are M:N.** An artifact carries many themes (the reuse mechanism); a theme has many artifacts (the cluster). Membership = `ce_artifact_themes` (explicit tag or semantic match).
