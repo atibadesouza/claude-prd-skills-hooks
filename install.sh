@@ -24,6 +24,7 @@ cp "$SRC/.claude/hooks/supabase-cli-check.mjs"   "$TARGET/.claude/hooks/"
 
 cp -r "$SRC/.claude/skills/quickpush" "$TARGET/.claude/skills/"
 cp -r "$SRC/.claude/skills/reviewer"  "$TARGET/.claude/skills/"
+cp -r "$SRC/.claude/skills/autobuild" "$TARGET/.claude/skills/"
 
 SETTINGS="$TARGET/.claude/settings.json"
 if [ -f "$SETTINGS" ]; then
@@ -41,4 +42,4 @@ echo "  - prd-reminder.mjs          (PostToolUse / Bash → reminds to update PR
 echo "  - post-commit-pitfalls.mjs  (PostToolUse / Bash → updates PITFALLS.md)"
 echo "  - save-plan.mjs             (PostToolUse / ExitPlanMode → docs/plans/*.md)"
 echo "  - supabase-cli-check.mjs    (SessionStart → reminds if Supabase CLI is missing in a Supabase project)"
-echo "Skills installed: quickpush, reviewer"
+echo "Skills installed: quickpush, reviewer, autobuild"

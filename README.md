@@ -12,6 +12,7 @@ Drop-in Claude Code template for new projects. Adds three automatic hooks and on
 | `sound-notify` | `Stop` + `Notification` hooks (user-level, Windows) | Plays a Windows system sound when Claude finishes a turn (Asterisk "ding") or needs your input/permission (Question "bell"). Inline PowerShell, no script file. Distinct sounds so you can tell completion vs. needs-input apart by ear. |
 | `quickpush` | Skill (`/quickpush`) | Stage, auto-write a commit message in repo style, commit, push. Supabase migration + edge function deploy steps included (skip if not relevant). |
 | `reviewer` | Skill (`/reviewer`) | Senior software architect that reviews another agent's plan. Proves or disproves the plan, surfaces issues, hidden assumptions, wrong patterns, and blindspots; asks clarifying questions; only approves when the plan is genuinely correct. |
+| `autobuild` | Skill (`/autobuild`) | Executes a build plan end-to-end autonomously. First picks the best execution strategy for the work — single agent, subagents, or an agent swarm — then builds. Tiered roadblock rules (stop only for destructive/credential/no-safe-default forks); keeps a build log; no progress check-ins or end-of-phase review pauses. |
 | `frontend-design` | Skill (third-party, from [`anthropics/skills`](https://github.com/anthropics/skills)) | Builds distinctive, production-grade frontend interfaces. Triggers on requests to build web components, pages, artifacts, or applications — avoids generic AI aesthetics. |
 | `ui-ux-pro-max` | Skill (third-party, from [`nextlevelbuilder/ui-ux-pro-max-skill`](https://github.com/nextlevelbuilder/ui-ux-pro-max-skill)) | UI/UX design intelligence: 50+ styles, 161 color palettes, 57 font pairings, 25 chart types across React/Next/Vue/Svelte/SwiftUI/Flutter/Tailwind/shadcn. **Heads-up:** Gen flags this skill High Risk (Snyk: Low; Socket: 0 alerts). Review before running. |
 | `pdf` | Skill (third-party, from [`anthropics/skills`](https://github.com/anthropics/skills)) | Read/extract text and tables from PDFs, merge/split, rotate pages, watermark, fill forms, encrypt/decrypt, extract images, OCR scanned PDFs. **Heads-up:** Snyk flags this skill High Risk (Gen: Safe; Socket: 0 alerts) — likely from PDF-parsing dependencies with known CVEs. Review before running. |
@@ -175,6 +176,18 @@ Senior software architect persona. Pass it a plan path, inline plan text, or not
 ### `/quickpush`
 
 Stage + commit (auto-message in repo style if none given) + push. Includes Supabase migration push and edge-function deploy steps that no-op cleanly in projects without `supabase/`.
+
+### `/autobuild`
+
+Runs a build plan from start to finish in one continuous, autonomous pass. Pass it a plan path, inline plan text, or nothing (it falls back to the most recent plan discussed or one in `docs/plans/`).
+
+Before building, it reads the whole plan and **chooses how to execute** based on the shape of the work:
+
+- **Single agent (default)** — interdependent, stateful, or small builds where sequencing beats parallelism.
+- **Subagents** — 2+ genuinely independent tasks; delegates via `dispatching-parallel-agents` / `subagent-driven-development`, isolating with worktrees (or running sequentially) when tasks would touch the same files.
+- **Agent swarm** — large fan-out of many similar independent units (migrations, repeated transforms, broad audits) via the `Workflow` tool.
+
+It can mix strategies across phases. It only stops for tiered roadblocks (destructive/irreversible actions, missing credentials, or a fork with no safe default), logs reversible best-guesses under **Assumptions**, keeps a build log next to the plan, and verifies the build at the end with real output. No progress check-ins, no end-of-phase review pauses.
 
 ### `/frontend-design`, `/ui-ux-pro-max`, and `/pdf` (third-party)
 

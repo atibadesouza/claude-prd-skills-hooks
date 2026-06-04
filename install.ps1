@@ -24,6 +24,7 @@ Copy-Item "$Src\.claude\hooks\save-plan.mjs"            "$Target\.claude\hooks\"
 Copy-Item "$Src\.claude\hooks\supabase-cli-check.mjs"   "$Target\.claude\hooks\" -Force
 Copy-Item "$Src\.claude\skills\quickpush"               "$Target\.claude\skills\" -Recurse -Force
 Copy-Item "$Src\.claude\skills\reviewer"                "$Target\.claude\skills\" -Recurse -Force
+Copy-Item "$Src\.claude\skills\autobuild"               "$Target\.claude\skills\" -Recurse -Force
 
 $Settings = "$Target\.claude\settings.json"
 if (Test-Path $Settings) {
@@ -39,4 +40,4 @@ Write-Host "  - prd-reminder.mjs          (PostToolUse / Bash -> reminds to upda
 Write-Host "  - post-commit-pitfalls.mjs  (PostToolUse / Bash -> updates PITFALLS.md)"
 Write-Host "  - save-plan.mjs             (PostToolUse / ExitPlanMode -> docs\plans\*.md)"
 Write-Host "  - supabase-cli-check.mjs    (SessionStart -> reminds if Supabase CLI is missing in a Supabase project)"
-Write-Host "Skills installed: quickpush, reviewer"
+Write-Host "Skills installed: quickpush, reviewer, autobuild"
