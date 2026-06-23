@@ -48,6 +48,18 @@ Always echo the resolved path back to the user at loop start so they can catch a
 
 In pause mode this is naturally satisfied (you pause every round). In auto mode, treat round 3 as a forced checkpoint even if no other condition fires.
 
+## Round 0 — planner self-audit (before the first reviewer spawn)
+
+Before spawning round 1 (in **both** modes), run this fast checklist against your own plan and fix what it surfaces. It is a self-check, not a gate — its output is edits to the plan, then round 1 proceeds. It catches the cheap, high-frequency errors that otherwise each cost a full review round (the five most common historical misses):
+
+1. **Refs grounded** — you opened every file / table / column / function / API field the plan cites and confirmed it exists and behaves as claimed.
+2. **Reuse verified** — every "reuse / extend / inherit / already-wired existing X" claim is checked by reading X, and you are not reinventing something that already exists.
+3. **Write paths idempotent** — every write / mutation / send path names its atomic claim / dedup key and its cron-retry / concurrency behavior.
+4. **Internally consistent** — no section of the plan contradicts another.
+5. **Falsifiable success** — acceptance criteria are a test that can actually fail.
+
+This is fast and round-saving. **Auto mode does NOT skip it.** Do not spawn the reviewer until you've run it and applied the fixes.
+
 ## Per-round flow
 
 For each round (1, 2, 3, ...):
