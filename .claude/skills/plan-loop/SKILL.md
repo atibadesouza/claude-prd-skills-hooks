@@ -1,6 +1,6 @@
 ---
 name: plan-loop
-description: Orchestrate the plan ↔ reviewer loop in a single chat. Spawns the `reviewer` skill as a subagent, parses its verdict, revises the plan in place, and re-spawns until APPROVED or the round cap is hit. Defaults to pausing each round for human approval; pass `--auto` for autonomous revision. Hard cap forces human checkpoint after 3 rounds regardless of mode.
+description: Orchestrate the plan ↔ reviewer loop in a single chat. Spawns the `reviewer` skill as a subagent, parses its verdict, revises the plan in place, and re-spawns until APPROVED or the round cap is hit. Defaults to pausing each round for human approval; pass `--auto` for autonomous revision. Hard cap forces human checkpoint after 4 rounds regardless of mode.
 argument-hint: [plan path | empty for latest docs/plans/*.md] [--auto] [--max=N]
 ---
 
@@ -26,7 +26,7 @@ The Review log's `**Contested:**` section is where pushback lives. Use it. If a 
 `$ARGUMENTS` may contain, in any order:
 - **A plan path** — e.g. `docs/plans/2026-05-10-foo.md`.
 - **`--auto`** — autonomous mode. Revise + re-spawn reviewer without pausing between rounds.
-- **`--max=N`** — override the default round cap of **3**. The cap applies in both modes.
+- **`--max=N`** — override the default round cap of **4**. The cap applies in both modes.
 
 If no flag is passed, mode is **pause** (default).
 
@@ -44,9 +44,9 @@ Always echo the resolved path back to the user at loop start so they can catch a
 
 ## The hard rule
 
-**After 3 rounds without convergence, you MUST stop and ask the human**, regardless of mode. The user explicitly required this. If `--max` is set higher than 3, you still pause at round 3 and ask whether to continue — only proceed past round 3 if the user explicitly says to.
+**After 4 rounds without convergence, you MUST stop and ask the human**, regardless of mode. The user explicitly required this. If `--max` is set higher than 4, you still pause at round 4 and ask whether to continue — only proceed past round 4 if the user explicitly says to.
 
-In pause mode this is naturally satisfied (you pause every round). In auto mode, treat round 3 as a forced checkpoint even if no other condition fires.
+In pause mode this is naturally satisfied (you pause every round). In auto mode, treat round 4 as a forced checkpoint even if no other condition fires.
 
 ## Round 0 — planner self-audit (before the first reviewer spawn)
 
@@ -112,7 +112,7 @@ Look for the `**Verdict:**` line near the top. It will contain one of:
 
 **Auto mode (`--auto`):**
 - Edit the plan file in place immediately. No user prompt.
-- BUT: if this completes round 3 (or `--max` if lower), stop after the edits and surface to the user before spawning round 4. See "Stopping conditions".
+- BUT: if this completes round 4 (or `--max` if lower), stop after the edits and surface to the user before spawning round 5. See "Stopping conditions".
 
 In **both** modes, every round appends a structured entry to the plan's `## Review log` section at the bottom of the plan file. Format:
 
@@ -146,8 +146,8 @@ If verdict was `CHANGES REQUIRED` and no stopping condition is hit, increment th
 The loop stops when **any** of these is true:
 1. **APPROVED** verdict received.
 2. **NEEDS CLARIFICATION** verdict received.
-3. **Round count reached the cap** (default 3, or `--max=N` if set). Pause and ask the user whether to continue, abandon, or take over manually. Only proceed past the cap if they explicitly say to.
-4. **Round 3 reached in auto mode regardless of `--max`** — the hard rule. Even if `--max=10`, you stop at round 3 to give the human a checkpoint.
+3. **Round count reached the cap** (default 4, or `--max=N` if set). Pause and ask the user whether to continue, abandon, or take over manually. Only proceed past the cap if they explicitly say to.
+4. **Round 4 reached in auto mode regardless of `--max`** — the hard rule. Even if `--max=10`, you stop at round 4 to give the human a checkpoint.
 5. **The reviewer is repeating itself** — if round N's review is substantively the same as round N-1's, the loop is thrashing. Stop and surface this to the user.
 6. **The user interrupts** (in pause mode, by saying "stop" / "don't apply" / etc.).
 
@@ -179,6 +179,6 @@ Auto mode without honest pushback collapses into the planner agreeing with every
 
 - Do not edit any file other than the plan file and (transitively, via the subagent) the `_review.md` file.
 - Do not write code based on the plan. This skill orchestrates planning, not implementation.
-- Do not skip the round-3 human checkpoint.
+- Do not skip the round-4 human checkpoint.
 - Do not claim the loop is complete unless a stopping condition was actually hit.
 - Do not invent or guess at the reviewer's verdict — read the file.
