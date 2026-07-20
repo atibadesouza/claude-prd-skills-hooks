@@ -57,6 +57,7 @@ Before spawning round 1 (in **both** modes), run this fast checklist against you
 3. **Write paths idempotent** — every write / mutation / send path names its atomic claim / dedup key and its cron-retry / concurrency behavior.
 4. **Internally consistent** — no section of the plan contradicts another.
 5. **Falsifiable success** — acceptance criteria are a test that can actually fail.
+6. **Owner-gate declared** — if the plan schedules a dated downstream auto-fire (a `schtasks`/cron/`.cmd` drop, a scheduled send, an auto-post) gated on an owner review, it declares a matching `owner_gates:` frontmatter entry so the surfacing gate can nudge before it fires. Run the deterministic check in the project (fail-silent if the script isn't present): `python scripts/owner_gate_check.py --check-plan <this-plan.md>` — a non-zero exit means the plan names a scheduling artifact but declares no `owner_gates` block; resolve it (add the block, or set `owner_gates_na: true` if it genuinely isn't owner-gated). (2026-07: the Dojo Kata Card-3 review gated a Wed auto-drop and nothing surfaced it.)
 
 This is fast and round-saving. **Auto mode does NOT skip it.** Do not spawn the reviewer until you've run it and applied the fixes.
 
