@@ -5,11 +5,24 @@ description: Write high-converting email copy — cold outreach, warm re-activat
 
 # Email Copywriting
 
-Turns email drafts into copy that gets opened, read, and acted on — grounded in Atiba's own research (the copywriter compendium, Drive doc `1Z798geNrtxkbNLb3vc8USAE2dXszbr790HMfIO-NtG8`) and our canon: [[f2-selling-principles]] (the 8-principle floor) + [[medical-ad-trust]] (doctor audiences). **No draft ships until it passes the Checklist Gate at the bottom.**
+Turns email drafts into copy that gets opened, read, and acted on.
 
-## The one rule that fixes "heady" and "sounds like AI"
+## Read this first — principles are law, tactics are hypotheses
 
-**Specificity, not concepts.** Every adjective is a failure until you replace it with a number, a name, or a concrete image. Wiebe's test: *"Whenever you see 'innovative' or 'excellent,' ask — can I show this instead, or quantify it? Replace 'fast' with 'in 7 minutes.'"* Abstract copy ("using AI in a cash-pay practice") is heady; concrete copy ("fill 6 empty afternoon slots a week") lands. If a line has no number, name, or picture, it is probably filler.
+The **guiding principles** below are the durable layer — human truths about why copy works — and they govern. Everything else (subject-line formulas, PAS/AIDA/HSO structures, P.S., urgency, long-copy, swipe templates) comes from **reference** material — Atiba's copywriter compendium (Drive `1Z798geNrtxkbNLb3vc8USAE2dXszbr790HMfIO-NtG8`, saved `lib-…`) profiling Kennedy/Belcher/Halbert/Wiebe. That reference is a **starting point to prove or disprove, not law.** Those writers built for direct mail, sales letters, and warm lists — decades ago. In a 2026 *cold* inbox the binding constraint is different (deliverability + AI-saturation + spam skepticism), so a tactic that sold a 1980s sales letter can *hurt* here. **Tactics are A/B hypotheses the engine tests for relevance; principles are the gate.**
+
+### The guiding principles (the law)
+1. **Relevance is the price of attention.** If the reader can't see "this is about *me*" in the subject + first line, nothing else matters. (Only intensifies as inboxes saturate.)
+2. **Enter the conversation already in their head** (Collier). Attach to the thought they're already having, in their own words — you can't install a new frame cold.
+3. **Specific is believed; vague is filtered.** Numbers/names/concrete images read as true; adjectives and superlatives read as marketing — to a skeptic *and* a spam filter. (This is what "heady" was: "using AI in a cash-pay practice" vs. "fill 6 empty afternoon slots a week.")
+4. **Emotion decides, logic justifies.** They must feel a reason before they weigh a mechanism.
+5. **A stranger starts below zero on trust.** Trust must be visibly present or borrowed before any ask — and cold email gets background-checked harder now, not less.
+6. **The reader is the hero; we're the guide.** Copy about us loses; copy about them wins.
+7. **One idea, one ask.** Every extra claim or choice is friction.
+8. **Human beats polished.** The message that reads person-to-person gets through; anything that reads as broadcast / ad / AI gets filtered by machines *and* minds. (The principle that's grown *most* relevant.)
+9. **Every claim carries its reason.** No assertion without the proof or reason-why right behind it.
+
+These map onto our canon: [[f2-selling-principles]] (the 8-principle Selling Scorecard) and, for doctors, [[medical-ad-trust]]. A draft ships only when it honors the principles + clears the deliverability/human-voice floor — **not** because it matches a formula.
 
 ## Subject lines — the single most important element
 
@@ -63,9 +76,9 @@ Cold-email formulas that work (adapt, then A/B test — never ship one, test man
 
 The checklist is the **floor**, not a variant — you never A/B "good vs. broken". Every arm must pass the gate, then you test ONE dimension above it (emotional-led vs. analytical-led; villain intensity; peer-proof vs. authority; subject open-loop vs. plain; loss vs. gain CTA). Run each arm to ≥1,000 unique, judge on **send→register** (not opens), significance-gate before promoting, winner becomes control. Enforced in `mmr-webclass-outreach/copy/copy_gate.py`.
 
-## THE CHECKLIST GATE (score every draft; any ✗ = rewrite)
+## Self-score checklist (a principle audit, not a formula match)
 
-Merged from Kennedy's, Halbert's, and Wiebe's checklists in the research doc:
+Score every draft against this. **Hard-fail (rewrite):** the deliverability items + the human-voice items + any principle *Missing* — these are the gate. The rest is guidance that serves a principle; it flags a weakness, it doesn't auto-kill. Derived from Kennedy/Halbert/Wiebe **and kept only where it serves a principle above** — treat the specific moves as testable, not sacred.
 
 **Subject**
 - [ ] About their problem/world, not our offer; looks 1:1
