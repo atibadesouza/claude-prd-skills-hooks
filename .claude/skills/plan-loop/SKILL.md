@@ -58,8 +58,77 @@ Before spawning round 1 (in **both** modes), run this fast checklist against you
 4. **Internally consistent** — no section of the plan contradicts another.
 5. **Falsifiable success** — acceptance criteria are a test that can actually fail.
 6. **Owner-gate declared** — if the plan schedules a dated downstream auto-fire (a `schtasks`/cron/`.cmd` drop, a scheduled send, an auto-post) gated on an owner review, it declares a matching `owner_gates:` frontmatter entry so the surfacing gate can nudge before it fires. Run the deterministic check in the project (fail-silent if the script isn't present): `python scripts/owner_gate_check.py --check-plan <this-plan.md>` — a non-zero exit means the plan names a scheduling artifact but declares no `owner_gates` block; resolve it (add the block, or set `owner_gates_na: true` if it genuinely isn't owner-gated). (2026-07: the Dojo Kata Card-3 review gated a Wed auto-drop and nothing surfaced it.)
+7. **Scope baseline captured** — write the `## Scope Baseline` section into the plan (see "Scope-delta tracking" below) **before** round 1. Without it there is nothing to diff the loop's revisions against, and drift becomes invisible.
 
 This is fast and round-saving. **Auto mode does NOT skip it.** Do not spawn the reviewer until you've run it and applied the fixes.
+
+## Scope-delta tracking — new/changed functionality (non-negotiable)
+
+The loop's known failure mode is **silent scope drift**: a review round adds functionality nobody asked for, it lands in the plan body under the banner of "the reviewer required it," and it gets built. (Precedent: an RXGH product-listing plan came out of the loop carrying a prescription vs. non-prescription split that was never in the ask.) Defects are already reported every round. **Additions are not — this section fixes that.**
+
+### A. Scope Baseline (written at Round 0, then frozen)
+
+Before round 1, add this section to the plan, immediately below the plan's goal/overview:
+
+```markdown
+## Scope Baseline
+_Frozen at Round 0 — the functionality committed before any review round. Do not edit after round 1; changes are tracked in "New & Changed Functionality" instead._
+
+**In scope (functionality this plan commits to):**
+- <one line per user-visible capability / behavior / surface the plan delivers>
+
+**Explicitly out of scope:**
+- <anything deliberately excluded — say it, so a later round can't quietly re-include it>
+```
+
+Derive "in scope" from the plan as it stands *and* from what the human actually asked for. If the plan already exceeds the ask at Round 0, that is drift too — flag it before round 1 rather than laundering it through the loop.
+
+If the plan already has a frozen `## Scope Baseline` (a resumed loop), do not rewrite it.
+
+### B. Per-round classification (every round, both modes)
+
+When you apply a round's revisions, classify **each** change against the Scope Baseline:
+
+| Class | Meaning |
+|---|---|
+| `FIX` | Corrects a defect in already-committed functionality. Adds no capability. **Not drift.** |
+| `NEW` | Adds a capability, surface, field, mode, or branch not in the Baseline. **Drift.** |
+| `CHANGED` | Alters committed behavior, a contract, or a user-visible outcome. **Drift.** |
+| `CUT` | Removes or defers something the Baseline committed to. **Drift.** |
+
+**Noise floor — these are NOT deltas**, and logging them buries the real ones: wording/formatting edits, added evidence or `path:line` citations, tightened acceptance criteria for already-committed behavior, added tests, added rollback/observability for committed behavior, filling in an implementation detail the Baseline already implied.
+
+**When in doubt, classify as drift.** A false `NEW` costs one line of review; a missed one ships a feature nobody approved.
+
+Each round's `## Review log` entry carries a `**Functionality delta:**` block (format in step 5). Every drift row names its **origin** — `reviewer:<issue title>`, `planner`, or `human` — because reviewer-originated additions are the highest-risk class: they arrive wearing the authority of a defect report. A reviewer issue tagged `SCOPE-ADD` in its review is a *proposal*, not a defect; you may decline it and record that under **Contested**.
+
+### C. Consolidated section (refreshed at loop end)
+
+At loop end — on **every** terminal verdict, `APPROVED` included — write or refresh this section, placed immediately **above** `## Review log`:
+
+```markdown
+## New & Changed Functionality
+_What this plan gained, lost, or altered across N review rounds, vs. the Scope Baseline._
+
+| # | Item | Class | Origin | Round | Justification | Status |
+|---|------|-------|--------|-------|---------------|--------|
+| 1 | <capability in one line> | NEW | reviewer:<issue> | 2 | <why it was added> | PENDING |
+
+**Fixes (no scope change):** <count> — <one line summarising them; do not table them individually>
+```
+
+`Status` is `PENDING` (awaiting the human's keep/cut), `KEEP` (human approved it into scope), or `CUT` (removed from the plan body). Set the plan frontmatter `scope_delta: none | pending | resolved` to match — `none` when the loop produced zero drift rows.
+
+If there is genuinely no drift, still write the section with the single line `No functionality added, changed, or cut — all revisions were FIX-class.` Silence is indistinguishable from "nobody checked."
+
+### D. The end-of-loop gate
+
+**The loop is not complete while any drift row is `PENDING`.** On the final report:
+
+- Lead with the drift rows — before the verdict summary, before next steps. They are the part a human cannot recover later.
+- Ask for an explicit **keep or cut per row**. This is one of the few decisions the loop may not make for the human, in either mode — `--auto` authorises autonomous *revision*, not autonomous *scope expansion*.
+- Do not report the plan as approved-and-ready while `scope_delta: pending`. Say "approved, N scope items awaiting your keep/cut."
+- On the human's answer: apply CUTs to the plan body in the same turn, flip the surviving rows to `KEEP`, set `scope_delta: resolved`, and say what you removed.
 
 ## Per-round flow
 
@@ -93,7 +162,7 @@ Look for the `**Verdict:**` line near the top. It will contain one of:
 ### 4. Branch on verdict
 
 **APPROVED:**
-- Loop is done. Append a final entry to the plan's `## Review log` noting the round number and "Approved by reviewer". Report success to the user with the plan path and round count. Stop.
+- Loop is done. Append a final entry to the plan's `## Review log` noting the round number and "Approved by reviewer". Refresh the `## New & Changed Functionality` section (section C above) — an APPROVED verdict does **not** exempt the loop from reporting drift; a reviewer approves correctness, not scope. Report to the user with the plan path, round count, and the drift rows first. Stop.
 
 **NEEDS CLARIFICATION:**
 - The reviewer is asking the *human*, not you. Stop the loop regardless of mode. Show the user the reviewer's questions verbatim and wait for their answers. Do not attempt to answer the questions yourself — the reviewer already determined they require human input.
@@ -133,6 +202,13 @@ In **both** modes, every round appends a structured entry to the plan's `## Revi
 **Contested:**
 - <issue title> — <reasoning for pushing back; reviewer should reconsider in the next round>
 
+**Functionality delta:**
+- `NEW` <capability> — origin: reviewer:<issue title> — <why>
+- `CHANGED` <committed behavior → new behavior> — origin: planner — <why>
+- `CUT` <dropped capability> — origin: <origin> — <why>
+- `FIX` ×N — <one line covering all defect-only corrections; do not itemise>
+_(or: `none beyond FIX` when the round added, altered, and cut nothing.)_
+
 **Plan body changes:** <one-line description of the diff to the plan body, or "none — only contested points">
 ```
 
@@ -160,9 +236,10 @@ The loop stops when **any** of these is true:
 
 **Per round (auto mode):** one line — "Round <N>: <verdict>. <one-line summary of action taken>". Don't dump the full review on every round.
 
-**At loop end:** a final report:
+**At loop end:** a final report, **in this order**:
+- **New & changed functionality** — every drift row (`NEW` / `CHANGED` / `CUT`) with its origin and round, and an explicit ask for keep-or-cut on each. If there were none, say so in one line: "No functionality added, changed, or cut." Never omit this block.
 - Plan path
-- Final verdict
+- Final verdict (and, if drift is pending, "approved — N scope items awaiting your keep/cut", not a bare "approved")
 - Round count
 - Path to the review file (`<plan>_review.md` — overwritten each round, only the last review survives)
 - One-sentence next-step suggestion
@@ -182,4 +259,6 @@ Auto mode without honest pushback collapses into the planner agreeing with every
 - Do not write code based on the plan. This skill orchestrates planning, not implementation.
 - Do not skip the round-4 human checkpoint.
 - Do not claim the loop is complete unless a stopping condition was actually hit.
+- Do not let functionality into the plan without a `NEW`/`CHANGED` row — not even when the reviewer demanded it, and not in `--auto`. Autonomous revision is authorised; autonomous scope expansion is not.
+- Do not edit the `## Scope Baseline` after round 1. It is the anchor the diff is measured from; editing it to match the revised plan erases the drift it exists to expose.
 - Do not invent or guess at the reviewer's verdict — read the file.
