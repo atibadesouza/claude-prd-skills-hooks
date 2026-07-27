@@ -62,6 +62,7 @@ Cold-email formulas that work (adapt, then A/B test — never ship one, test man
 - **"So what?" every line** — if it doesn't deliver a benefit or build momentum, cut it.
 - **No empty superlatives** ("revolutionary", "world-class", "amazing", "game-changer") — every claim needs a number/proof right behind it, or it's cut. Only ~6–9% believe advertisers; overshoot believability and you lose everyone.
 - **Authentic urgency only** — never fake "only 3 spots left". False urgency destroys trust.
+- **Never protest that it isn't a pitch.** Lines like "it isn't a sales pitch" / "nothing to sell" are the classic *protesting-too-much* tell — preemptive denial signals the opposite and *raises* a skeptic's radar. (Cross-model judge killed 3/4 variants on exactly this, 2026-07-27.) Let the plainness carry it; if you have to say it's not a pitch, it reads like one.
 - **Two failure modes, both flagged/spam-risky (Atiba 2026-07-21):** (a) *sounds like AI* — stiff, over-structured, "not X but Y", tricolons, em-dash cadence, lines nobody says out loud ("You didn't start your practice to become a marketer"); (b) *sounds like marketing* — reads as an ad. Target the narrow lane of a plain note between two people.
 
 ## Cold-email specifics (top-of-funnel, deliverability-sensitive)
