@@ -30,8 +30,9 @@ The subject sells the **open**, not the offer. **Never announce our product/even
 
 Rules:
 - **Be about THEM, not us.** Their problem, their world — not our offer.
+- **CLEAR, NOT CLEVER — never a riddle (Atiba, 2026-07-29).** The reader must know in *half a second* that it's about THEIR pain. A subject they have to decode is a subject they delete. ❌ *"The interview they didn't show up for"* — who's "they"? what interview? A busy owner won't stop to work it out. ✅ *"How much did your last bad hire cost?"* — names the pain outright, instantly self-evident. Cuteness does not win the war; clarity is the price of the click.
 - **Look 1:1**, like one person wrote to one person (not a 5,000-person send).
-- **Specific > vague; curiosity or a nerve-hitting question > clever.** A question subject must hit a nerve and NOT be answerable with a flat "no."
+- **Specific > vague; a nerve-hitting question > clever.** A question subject must hit a nerve, be instantly clear, and NOT be answerable with a flat "no."
 - **Short** (≤ ~7 words for cold). No date/product-noun promo markers on cold.
 - **No spam tells:** no "free", no ALL-CAPS, no exclamation, no excessive name-personalization (trips filters / feels creepy).
 
@@ -46,6 +47,7 @@ Cold-email formulas that work (adapt, then A/B test — never ship one, test man
 **Spine (compress for email; full sales-letter machinery is for landing pages):**
 1. **Voice-of-customer first.** Use their exact words/phrasing (mine reviews, transcripts, DMs). Never invent marketing phrasing.
 2. **Hook on the strongest pain or desire, with specificity** — pain in *their* words (PAS: Problem → Agitate → Solution; or HSO: Hook → Story → Offer for warm).
+   - **ONE pain per email, ridden all the way down (Atiba, 2026-07-29).** Pick the single strongest wound and stay on it start to finish. Do NOT open on pain A ("the candidate who no-showed") then pivot to pain B ("the hire who turned out wrong") — stacking a second pain dilutes both and reads as unfocused. The agitation deepens the *same* pain; it never introduces a new one.
 3. **Slippery slide** — each sentence's only job is to get the next one read. Short blocks (1–3 sentences), white space, mobile-skimmable.
 4. **"You" ≫ "we"** — ~3:1 ratio. Lead with "you", not our brand name. Talk about them, not us.
 5. **One CTA**, benefit-first and (on the button) first-person — "Get my link", not "Submit"/"Click here". For a free/low-commitment ask keep it soft (a question: "Want the link?"). One offer per email.
