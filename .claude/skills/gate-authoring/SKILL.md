@@ -37,6 +37,7 @@ Parsing tool output is where gates corrupt the thing they guard.
 - **Never** two ranges over the same start marker. The second one re-reads and merges sections that were meant to stay separate.
 - **Never** `for f in $VAR`. Unquoted expansion word-splits prose into garbage tokens. Use `while IFS= read -r line`.
 - Any string that may contain `&`, `$`, `%`, quotes, backticks, or spaces gets **a script file**, not an inline one-liner. Shells and command-line parsers eat these silently and the truncation looks like a legitimate short value.
+- **Keep `.ps1` files pure ASCII.** PowerShell reads a BOM-less UTF-8 script as cp1252, so an em-dash (`—` = `E2 80 94`) decodes to bytes including `0x94` — a Unicode right-double-quote, which PowerShell honours as a *string delimiter*. One em-dash in a comment closes a string early and produces a cascade of "missing closing `}`" errors pointing dozens of lines away from the real cause. Same trap for smart quotes and arrows. Write `-`, `->`, `"`.
 
 > *Origin: an open-ended range plus an unquoted `for` loop turned a hook's prose output into 14 junk artifacts, each of which the next run then read as input — a self-feeding corruption loop.*
 
