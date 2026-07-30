@@ -930,7 +930,19 @@ no longer self-attested — a script checks them from outside the build:
 python scripts/design_preflight.py <site-root>            # report findings, never blocks
 python scripts/design_preflight.py <site-root> --strict    # exit 1 on any hard-fail
 python scripts/design_preflight.py <site-root> --brief=premium-consumer   # + palette check
+python scripts/design_preflight.py <site-root> --rendered  # + browser checks (see below)
+python scripts/design_preflight.py <site-root> --rendered --check-fake-screenshots
 ```
+
+`--rendered` starts the site's own dev server, drives it at 375 / 768 / 1440 with Playwright, and
+always shuts it down. ~20-30s. It adds two checks: **sideways scroll** and **long-word overflow**
+(a 26-character unbroken word injected into every heading). If it cannot run it prints
+`rendered checks (12, 13) NOT RUN - <reason>` — that line means those checks did **not** happen,
+and you must say so rather than let the static result stand in for them.
+
+`--check-fake-screenshots` adds the div-based fake-product-UI check. It is **opt-in on purpose**:
+0 of 5 adversarial benign patterns and 2 of 2 real fake-chrome panels in testing, which is enough
+to show it discriminates but not enough to make it a blocking default.
 
 It lives in the **Atiba Projects** workspace repo (`scripts/design_preflight.py`), which is a
 *different* repo from this skill. Silence means clean; it prints nothing when there is nothing
@@ -942,11 +954,16 @@ gate was unavailable, the countable boxes below are self-attested" — and fall 
 them by hand. Do not tick a `[MECHANICAL]` box silently without having run it. An unverified
 box reported as verified is the exact failure this gate exists to remove.
 
-Two boxes are deliberately **NOT** mechanical and must not be read as covered:
-- **div-based fake screenshots** — no reliable textual signature exists, so nothing was built
-  rather than shipping a check that guesses. Fully human.
+One box is deliberately **NOT** mechanical and must not be read as covered:
 - **eyebrow adjacency** (the "next 2 sections" half of the rule) — the script checks the
   ratio only. See the eyebrow box below.
+
+And one is **partly** mechanical, but only when you ask for it:
+- **div-based fake screenshots** — there is no reliable way to spot one by *reading the code*, so
+  the static gate does not try. In a rendered page the signature is real (a row of small circles
+  in a panel's top band, above a large blank region, with no actual image inside), and
+  `--rendered --check-fake-screenshots` checks it. It does **not** cover the rest of that box —
+  hand-rolled decorative SVGs and pure-text minimalism are still yours to judge.
 
 - [ ] **Brief inference** declared (Section 0.B one-liner)?
 - [ ] **Dial values** explicit and reasoned from the brief, not silently using baseline?
@@ -981,7 +998,7 @@ Two boxes are deliberately **NOT** mechanical and must not be read as covered:
 - [ ] **Section-Layout-Repetition** check: no two sections share the same layout family (at least 4 different families across 8 sections)?
 - [ ] **Bento has rhythm AND exact cell count** (N items → N cells, no empty cells in middle or at end)?
 - [ ] **Long lists use the right UI component** (not default `<ul>` with `divide-y` for > 5 items - see Section 4.9 alternatives)?
-- [ ] **[HUMAN - deliberately not mechanical, no reliable signature]** **Real images used** (gen-tool first, then Picsum-seed, then explicit placeholder slots) - NO div-based fake screenshots, NO hand-rolled decorative SVGs, NO pure-text minimalism?
+- [ ] **[PART-MECHANICAL: div-based fake screenshots detected by `--rendered --check-fake-screenshots`; hand-rolled decorative SVGs and pure-text minimalism are human]** **Real images used** (gen-tool first, then Picsum-seed, then explicit placeholder slots) - NO div-based fake screenshots, NO hand-rolled decorative SVGs, NO pure-text minimalism?
 - [ ] **No pills/labels overlaid on images** (no `Plate · Brand`, no `Field notes - journal`)?
 - [ ] **No photo-credit captions as decoration** (`Field study no. 12 · Ines Caetano`)?
 - [ ] **No version footers** (`v1.4.2`, `Build 0048`) on marketing pages?
@@ -1002,7 +1019,8 @@ Two boxes are deliberately **NOT** mechanical and must not be read as covered:
 - [ ] **[MECHANICAL]** **No `window.addEventListener('scroll')`** - using Motion `useScroll()` / ScrollTrigger / IntersectionObserver / CSS scroll-driven animations only?
 - [ ] **Reduced motion** wrapped for everything `MOTION_INTENSITY > 3`?
 - [ ] **Dark mode** tokens defined and tested in both modes?
-- [ ] **Mobile collapse** explicit (`w-full`, `px-4`, `max-w-7xl mx-auto`) for high-variance layouts?
+- [ ] **[PART-MECHANICAL: sideways scroll at 375/768/1440 via `--rendered`; whether the collapse reads well is human]** **Mobile collapse** explicit (`w-full`, `px-4`, `max-w-7xl mx-auto`) for high-variance layouts?
+- [ ] **[MECHANICAL via `--rendered`]** **Long-word resilience**: headings survive a 26-character unbroken word (a long medical/German term, a URL) without the page scrolling sideways at 375px — `overflow-wrap: break-word` on headings?
 - [ ] **[MECHANICAL]** **Viewport stability**: `min-h-[100dvh]`, never `h-screen`?
 - [ ] **`useEffect` animations** have strict cleanup functions?
 - [ ] **Empty / loading / error** states provided?

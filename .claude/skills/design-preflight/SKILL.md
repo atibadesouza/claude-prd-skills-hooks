@@ -55,7 +55,26 @@ python scripts/design_preflight.py <site-root> --rendered
 ```
 
 This starts the site's own dev server, drives it with the site's own Playwright at 375 / 768 /
-1440, and always shuts the server down afterwards. It takes roughly 20–30 seconds.
+1440 with motion forced to `reduce`, and always shuts the server down afterwards. Roughly
+20–30 seconds. Overflow is measured with a 1px tolerance, matching what both real sites'
+own test suites allow.
+
+Add `--check-fake-screenshots` to also check for div-based fake product UI — a row of small
+circles in a panel's top band above a large blank region, with no real image inside:
+
+```bash
+python scripts/design_preflight.py <site-root> --rendered --check-fake-screenshots
+```
+
+It is **opt-in on purpose.** Against adversarial fixtures it flags 0 of 5 benign dot patterns
+(carousel dots, loading spinner, step tracker, rating row, bullet card) and catches 2 of 2 real
+fake-chrome panels. That is enough to show it discriminates, and not enough to make it a blocking
+default — so it reports as `justify-or-fix` and asks you to confirm by eye.
+
+**If the site's own Playwright config boots a production server** (`npm run start`) and no
+production build exists, the gate measures the dev build instead and prints a note saying so.
+Layout on a dev build is not always representative. When you see that note, either run
+`npm run build` first or say in your report that the measurement was against dev.
 
 It needs `node_modules` present in the site and `npm` on PATH. When it cannot run it says so
 explicitly — **`rendered checks (9, 12, 13) NOT RUN — <reason>`**. That line is not noise. If you
