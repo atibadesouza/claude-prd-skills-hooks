@@ -913,24 +913,53 @@ Run this matrix before outputting code. This is the last filter.
 
 **THIS IS NOT OPTIONAL. Run every box. If any box fails, the output is not done.**
 
+### 14.A Run the mechanical gate FIRST
+
+Most of this matrix is a human judgement call. A subset is countable, and those boxes are
+no longer self-attested — a script checks them from outside the build:
+
+```bash
+python scripts/design_preflight.py <site-root>            # report findings, never blocks
+python scripts/design_preflight.py <site-root> --strict    # exit 1 on any hard-fail
+python scripts/design_preflight.py <site-root> --brief=premium-consumer   # + palette check
+```
+
+It lives in the **Atiba Projects** workspace repo (`scripts/design_preflight.py`), which is a
+*different* repo from this skill. Silence means clean; it prints nothing when there is nothing
+to say. Boxes below tagged **[MECHANICAL]** are the ones it actually verifies, and
+**[PART-MECHANICAL]** names the fraction it verifies and leaves the rest to you.
+
+**If the script is not on this machine, say so explicitly in your output** — "the mechanical
+gate was unavailable, the countable boxes below are self-attested" — and fall back to ticking
+them by hand. Do not tick a `[MECHANICAL]` box silently without having run it. An unverified
+box reported as verified is the exact failure this gate exists to remove.
+
+Two boxes are deliberately **NOT** mechanical and must not be read as covered:
+- **div-based fake screenshots** — no reliable textual signature exists, so nothing was built
+  rather than shipping a check that guesses. Fully human.
+- **eyebrow adjacency** (the "next 2 sections" half of the rule) — the script checks the
+  ratio only. See the eyebrow box below.
+
 - [ ] **Brief inference** declared (Section 0.B one-liner)?
 - [ ] **Dial values** explicit and reasoned from the brief, not silently using baseline?
 - [ ] **Design system** chosen from Section 2 if applicable, or aesthetic labeled honestly?
 - [ ] **Redesign mode** detected and audit performed (if applicable, Section 11)?
-- [ ] **ZERO em-dashes (`—`) anywhere on the page.** Headlines, eyebrows, pills, body, quotes, attribution, captions, buttons, alt text. Zero. (Section 9.G - non-negotiable.)
+- [ ] **[MECHANICAL]** **ZERO em-dashes (`—`) anywhere on the page.** Headlines, eyebrows, pills, body, quotes, attribution, captions, buttons, alt text. Zero. (Section 9.G - non-negotiable.)
 - [ ] **Page Theme Lock**: ONE theme (light, dark, or auto) for the whole page. No section flips to inverted mode mid-page (Section 4.11)?
 - [ ] **Color Consistency Lock**: one accent color used identically across all sections (Section 4.2)?
 - [ ] **Shape Consistency Lock**: one corner-radius system applied consistently (Section 4.4)?
 - [ ] **Button Contrast Check**: every CTA text is readable against its background (no white-on-white, WCAG AA 4.5:1)?
 - [ ] **CTA Button Wrap**: no CTA label wraps to 2+ lines at desktop?
 - [ ] **Form Contrast Check**: form inputs, placeholders, focus rings, labels all pass WCAG AA against the section background?
-- [ ] **Serif discipline**: if a serif is used, it is NOT Fraunces or Instrument_Serif (or it is, with explicit brand justification)? Different serif from your previous project?
-- [ ] **Premium-consumer palette check**: if the brief is premium-consumer (cookware / wellness / artisan / luxury), the palette is NOT the AI-default beige+brass+oxblood+espresso family? Different family from your previous premium-consumer project?
+- [ ] **[PART-MECHANICAL: Fraunces/Instrument_Serif detected; "different serif from last project" is human]** **Serif discipline**: if a serif is used, it is NOT Fraunces or Instrument_Serif (or it is, with explicit brand justification)? Different serif from your previous project?
+- [ ] **[MECHANICAL with `--brief=premium-consumer`; inert otherwise, so you must pass the flag when the brief is premium-consumer]** **Premium-consumer palette check**: if the brief is premium-consumer (cookware / wellness / artisan / luxury), the palette is NOT the AI-default beige+brass+oxblood+espresso family? Different family from your previous premium-consumer project?
 - [ ] **Italic descender clearance**: every italic word with `y g j p q` has `leading-[1.1]` min + `pb-1` reserve?
 - [ ] **Hero fits the viewport**: headline ≤ 2 lines, subtext ≤ 20 words AND ≤ 4 lines, CTA visible without scroll, font scale planned around image?
 - [ ] **Hero top padding**: max `pt-24` at desktop, hero content does not float halfway down the viewport?
 - [ ] **Hero stack discipline**: max 4 text elements in hero (eyebrow OR brand strip, headline, subtext, CTAs)? No tiny tagline below CTAs, no trust micro-strip in hero?
-- [ ] **EYEBROW COUNT (mechanical)**: count instances of `uppercase tracking` micro-labels above section headlines across all components. Count ≤ ceil(sectionCount / 3)? Hero counts as 1.
+- [ ] **EYEBROW COUNT** — **[PART-MECHANICAL: ratio only]**. Two clauses, and only the first is checked by the script:
+  - *(A) ratio — MECHANICAL.* Eyebrows per **route** ≤ `max(1, ceil(sectionCount / 3))`. Scored per page, not per site: a component's eyebrow belongs to whichever route imports it. The cap floors at 1 so a legitimate section-less page is not failed for having one label. Hero counts as 1.
+  - *(B) adjacency — HUMAN, not checked.* If section A has an eyebrow, the next 2 sections must not. The script does **not** encode this. A page can pass (A) and still violate (B) — verify it yourself.
 - [ ] **Split-Header Ban**: no "left big headline + right small explainer paragraph" pattern as a section header (vertical stack instead)?
 - [ ] **Zigzag Alternation Cap**: no 3+ consecutive sections with the same image+text-split layout?
 - [ ] **No Duplicate CTA Intent**: no two CTAs with the same intent ("Get in touch" + "Let's talk" both on page = Fail)?
@@ -944,7 +973,7 @@ Run this matrix before outputting code. This is the last filter.
 - [ ] **Section-Layout-Repetition** check: no two sections share the same layout family (at least 4 different families across 8 sections)?
 - [ ] **Bento has rhythm AND exact cell count** (N items → N cells, no empty cells in middle or at end)?
 - [ ] **Long lists use the right UI component** (not default `<ul>` with `divide-y` for > 5 items - see Section 4.9 alternatives)?
-- [ ] **Real images used** (gen-tool first, then Picsum-seed, then explicit placeholder slots) - NO div-based fake screenshots, NO hand-rolled decorative SVGs, NO pure-text minimalism?
+- [ ] **[HUMAN - deliberately not mechanical, no reliable signature]** **Real images used** (gen-tool first, then Picsum-seed, then explicit placeholder slots) - NO div-based fake screenshots, NO hand-rolled decorative SVGs, NO pure-text minimalism?
 - [ ] **No pills/labels overlaid on images** (no `Plate · Brand`, no `Field notes - journal`)?
 - [ ] **No photo-credit captions as decoration** (`Field study no. 12 · Ines Caetano`)?
 - [ ] **No version footers** (`v1.4.2`, `Build 0048`) on marketing pages?
@@ -953,7 +982,7 @@ Run this matrix before outputting code. This is the last filter.
 - [ ] **No floating top-right sub-text** in section headings?
 - [ ] **No scoring/progress bars with filled background tracks** as comparison visuals?
 - [ ] **No locale / city-name / time / weather strips** unless brief is genuinely globally-distributed or place-focused?
-- [ ] **No scroll cues** (`Scroll`, `↓ scroll`, `Scroll to explore`)?
+- [ ] **[MECHANICAL]** **No scroll cues** (`Scroll`, `↓ scroll`, `Scroll to explore`)?
 - [ ] **No version labels in hero** (V0.6, BETA, INVITE-ONLY) unless the brief is a launch?
 - [ ] **No section-numbering eyebrows** (`00 / INDEX`, `001 · Capabilities`, `06 · how it works`)?
 - [ ] **No decorative dots** (zero by default, only for real semantic state)?
@@ -962,17 +991,17 @@ Run this matrix before outputting code. This is the last filter.
 - [ ] **Quotes ≤ 3 lines** of body, attribution clean (no em-dash)?
 - [ ] **Motion claimed = motion shown**: if `MOTION_INTENSITY > 4`, page actually animates, not just claimed?
 - [ ] **GSAP sticky-stack / horizontal-pan** implemented per Section 5.A / 5.B canonical skeleton (`start: "top top"`, `pin: true`, correct scrub)?
-- [ ] **No `window.addEventListener('scroll')`** - using Motion `useScroll()` / ScrollTrigger / IntersectionObserver / CSS scroll-driven animations only?
+- [ ] **[MECHANICAL]** **No `window.addEventListener('scroll')`** - using Motion `useScroll()` / ScrollTrigger / IntersectionObserver / CSS scroll-driven animations only?
 - [ ] **Reduced motion** wrapped for everything `MOTION_INTENSITY > 3`?
 - [ ] **Dark mode** tokens defined and tested in both modes?
 - [ ] **Mobile collapse** explicit (`w-full`, `px-4`, `max-w-7xl mx-auto`) for high-variance layouts?
-- [ ] **Viewport stability**: `min-h-[100dvh]`, never `h-screen`?
+- [ ] **[MECHANICAL]** **Viewport stability**: `min-h-[100dvh]`, never `h-screen`?
 - [ ] **`useEffect` animations** have strict cleanup functions?
 - [ ] **Empty / loading / error** states provided?
 - [ ] **Cards omitted** in favor of spacing where possible?
-- [ ] **Icons** from an allowed library only (Phosphor / HugeIcons / Radix / Tabler), no hand-rolled SVG paths?
+- [ ] **[PART-MECHANICAL: lucide-react imports detected; hand-rolled SVG paths are human]** **Icons** from an allowed library only (Phosphor / HugeIcons / Radix / Tabler), no hand-rolled SVG paths?
 - [ ] **Motion** isolated in client-leaf components with `'use client'` at the top, memoized?
-- [ ] **No AI Tells** from Section 9 (Inter as default, AI-purple, three-equal cards, Jane Doe, Acme, "Quietly in use at")?
+- [ ] **[PART-MECHANICAL: Inter, Jane Doe, Acme detected; AI-purple and three-equal-cards are human]** **No AI Tells** from Section 9 (Inter as default, AI-purple, three-equal cards, Jane Doe, Acme, "Quietly in use at")?
 - [ ] **Core Web Vitals** plausibly hit (LCP < 2.5s, INP < 200ms, CLS < 0.1)?
 - [ ] **One design system** per project (no Material + shadcn mixed)?
 
