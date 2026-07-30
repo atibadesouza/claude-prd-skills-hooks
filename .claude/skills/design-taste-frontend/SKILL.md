@@ -836,11 +836,19 @@ Never modify without explicit user approval:
 
 The Reference Vocabulary (Section 10) names patterns. The Block Library implements them with real props, real motion specs, and real code sketches.
 
-**Status:** schema defined here. Blocks will be added iteratively. Do not freelance new blocks without following this schema.
+**Status:** schema defined here, and blocks now exist. Do not freelance new blocks without following this schema.
+
+**Every block is harvested, not invented.** A block is admitted only where two shipped sites
+solved the same job *differently* — that difference is the evidence of what is structural (keep,
+parameterise) versus what is brand (leave to the caller). A single-source block is a copy, not a
+generalisation. Each block records its `harvested_from` sources so provenance is auditable.
 
 ### 12.A File Location
+
+Blocks live inside this skill, at `~/.claude/skills/design-taste-frontend/blocks/`:
+
 ```
-skills/taste-skill/blocks/
+blocks/
   hero/
     asymmetric-split.md
     editorial-manifesto.md
