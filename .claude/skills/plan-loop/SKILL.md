@@ -16,6 +16,20 @@ requires:
 - **tool `Agent`** *(advisory — not machine-checked)* — spawns the reviewer as a subagent; without it the loop dies after Round 0
 <!-- END requires-block -->
 
+## Setup — run this first, before dispatching anything
+
+```bash
+python ~/.claude/global/bin/skill_context.py
+```
+
+Run it **exactly once per invocation, as its own command.** Do not pipe or filter it — no `head`, `tail`, or `grep` — and do not bundle it into a batch. Its output opens with `=== skill context` and ends with `SKILL_CONTEXT_END`; **if you received one of those without the other, the output was truncated — run it again, unpiped, once.** That is the only rerun.
+
+Follow the directives it prints. They matter most here: this loop's whole value rests on the reviewer being a **separately dispatched context**. Running the review inline and calling the result a second opinion is one context arguing both sides, which is precisely the failure the loop exists to prevent — so if no subagent capability exists, report that as a blocker rather than substituting.
+
+If the script is missing or errors, continue with the loop's normal behaviour.
+
+---
+
 You are orchestrating an automated plan-review loop. The planner is **you** (in this main chat); the reviewer is a subagent spawned via the Agent tool, running the `reviewer` skill against the same plan file.
 
 Your job is to drive rounds of review → revise → re-review until the reviewer issues `APPROVED`, or until you hit a stopping condition that requires human input.
@@ -160,6 +174,12 @@ But you cannot directly invoke another instance's skill. Instead, spawn a genera
 > "Run the `reviewer` skill against the plan at `<path>`. Produce the full review (Verdict, Issues, Hidden assumptions, Blindspots, Recommended course of action) and write it to `<path with _review suffix>` per the reviewer skill's contract. Report back with: (1) the verdict line verbatim, (2) the path you wrote the review to. Do not edit any other file."
 
 Use `subagent_type: "general-purpose"` so the subagent has access to file write tools (the `reviewer` skill writes the `_review.md` companion file).
+
+**The subagent writes its full output to disk and returns only the path.** This is already how the reviewer works — it writes `_review.md` and reports where — and the reason is worth stating so nobody "simplifies" it away: a subagent asked to return a long body inline **intermittently returns an executive summary instead** ("Review complete — fourteen issues found"), and the original is then unrecoverable from the orchestrator's side. The file on disk always survives; the inline return is just a pointer.
+
+So: **read the file, never the summary.** Step 2 below says this and it is not optional. Treat the inline text as a claim about where the work is, not as the work.
+
+Any other subagent this loop dispatches follows the same contract — write the full output to a file, confirm the write, return the path, and fall back to returning inline **only** when the write actually failed.
 
 ### 2. Read the review file
 

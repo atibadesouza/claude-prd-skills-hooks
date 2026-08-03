@@ -84,6 +84,30 @@ Convert every schedule to a single timezone (UTC) and compare the actual instant
 
 > *Origin: a cloud cron at `0 1 * * 3` (Wed 01:00 UTC) and its local fallback at Tue 18:00 PDT were the same instant. Both had channel-history guards; neither could have seen the other's post. Caught three days early by converting both to UTC.*
 
+## When you move content out into a reference file, leave a stub that makes the load necessary
+
+Skills and gates grow, and the fix is usually to move the detail into a reference file. That move
+quietly breaks things, because what gets left behind is a pointer — *"see `references/foo.md` for
+the details"* — and an agent that believes it already knows the details will skip it. The load
+becomes advisory, and the reference stops being read at exactly the moment it starts mattering.
+
+**The stub names two things and withholds a third:**
+
+1. **What the reference contains** — enough to know whether it is relevant now.
+2. **What breaks if you skip it** — the concrete failure, not "for more detail".
+3. **No detail an agent could improvise from.** This is the part that does the work. If the stub
+   summarises the rules, a confident agent reconstructs them from the summary and never opens the
+   file — and reconstructs them slightly wrong, which is worse than not having them.
+
+> **Weak:** "See `references/adjudication.md` for how to handle flagged findings."
+> **Strong:** "Read `references/adjudication.md` before judging a single flag. It holds the rule for
+> which flags are questions and which are failures — getting that backwards means auto-fixing a
+> finding that was correct, and the fix is silent. Nothing here summarises it: the file is the only
+> copy."
+
+The test: **could someone act plausibly without opening the file?** If yes, the stub is too
+generous. A load-bearing reference deserves a stub that makes skipping it obviously reckless.
+
 ## Before you finish
 
 Confirm, explicitly:
@@ -96,6 +120,7 @@ Confirm, explicitly:
 - [ ] Tests cover synthetic-broken **and** live-corpus-zero.
 - [ ] Alarming rows independently re-verified before being reported as fact.
 - [ ] If a second actor can cause the same effect: shared atomic claim, or a real time offset proven in UTC.
+- [ ] Any reference file this splits out has a stub naming what it holds and what breaks without it — and summarising none of it.
 
 ## Related
 
