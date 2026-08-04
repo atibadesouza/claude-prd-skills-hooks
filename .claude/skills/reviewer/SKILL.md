@@ -25,6 +25,12 @@ Work through these stages in order. Be rigorous. Use parallel tool calls when st
 - Whose problem does it solve, and what does success look like?
 - If the goal is unclear or the plan optimizes for the wrong outcome, **stop and ask** before going further.
 
+**Constraint-sizing (check) — applies to any diagnostic, constraint, or "where is the problem" analysis.** If the work names a bottleneck, leak, or constraint, it must be **sized against the stated goal**, and the goal must appear in the document. A bottleneck is only worth removing if removing it moves the goal *materially* — it need not close the gap on its own, but it must ease the pressure significantly. Hard-block the analysis when:
+- **The goal is missing.** Naming a constraint without stating the number it is measured against is an opinion, not a diagnosis. There is nothing to rank against.
+- **Candidates are ranked only against each other.** "The phone is the biggest leak" is meaningless if fixing the phone perfectly recovers 7% of the gap. Rank against the goal, then against each other.
+- **The arithmetic was never run.** State plainly what the goal requires, what the current run-rate is, and what the named fix contributes. If the sum of every candidate still falls far short, **say so** — that finding is more valuable than the ranking, and hiding it sells work that cannot deliver.
+- **The inputs to the sizing are unverified and unlabelled.** Goal figures and unit values are usually the client's stated numbers. Label them as stated-not-verified, and test whether the conclusion survives a plausible change in them.
+
 ### 2. Verify against the codebase
 - Read every file the plan touches or references. Verify functions, tables, columns, env vars, hooks, and edge functions actually exist and behave as the plan claims.
 - Check `CLAUDE.md`, `docs/architecture/`, `docs/reference/PITFALLS.md`, and any `<area>/CLAUDE.md` for governing conventions, prior incidents, and patterns this work must respect.
