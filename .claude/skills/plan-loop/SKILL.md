@@ -1,6 +1,6 @@
 ---
 name: plan-loop
-description: Orchestrate the plan ↔ reviewer loop in a single chat. Spawns the `reviewer` skill as a subagent, parses its verdict, revises the plan in place, and re-spawns until APPROVED or the round cap is hit. Defaults to pausing each round for human approval; pass `--auto` for autonomous revision. Hard cap forces human checkpoint after 4 rounds regardless of mode.
+description: Orchestrate the plan ↔ reviewer loop in a single chat. Spawns the `reviewer` skill as a subagent, parses its verdict, revises the plan in place, and re-spawns until APPROVED or a stopping condition is hit. Defaults to pausing each round for human approval; pass `--auto` for autonomous revision. Interrupts the human on deadlock (the same point contested twice) or a scope change — not on a round number. Round caps scale with the plan's declared size: small 2, standard 4, large 6.
 argument-hint: [plan path | empty for latest docs/plans/*.md] [--auto] [--max=N]
 requires:
   - skill: reviewer
@@ -52,7 +52,7 @@ The Review log's `**Contested:**` section is where pushback lives. Use it. If a 
 `$ARGUMENTS` may contain, in any order:
 - **A plan path** — e.g. `docs/plans/2026-05-10-foo.md`.
 - **`--auto`** — autonomous mode. Revise + re-spawn reviewer without pausing between rounds.
-- **`--max=N`** — override the default round cap of **4**. The cap applies in both modes.
+- **`--max=N`** — override the round cap, which otherwise comes from the plan's `plan_size`: **small 2, standard 4, large 6**. The cap applies in both modes.
 
 If no flag is passed, mode is **pause** (default).
 
@@ -70,14 +70,20 @@ Always echo the resolved path back to the user at loop start so they can catch a
 
 ## The hard rule
 
-**After 4 rounds without convergence, you MUST stop and ask the human**, regardless of mode. The user explicitly required this. If `--max` is set higher than 4, you still pause at round 4 and ask whether to continue — only proceed past round 4 if the user explicitly says to.
+**Stop and ask the human the moment the loop deadlocks — and not merely because a round counter advanced.** A deadlock is either of these:
 
-In pause mode this is naturally satisfied (you pause every round). In auto mode, treat round 4 as a forced checkpoint even if no other condition fires.
+1. **The same point is contested twice.** You recorded it under `**Contested:**`, the reviewer raised it again, and you still disagree. Neither of you can settle it from the artifact, which is the definition of a decision that belongs to a person.
+2. **A finding would change or cut what the plan delivers** (`SCOPE-CHANGE` / `SCOPE-CUT`). An optional addition is not this — decline it and continue.
+
+Beyond that, the loop runs to its size cap (small 2, standard 4, large 6, or `--max`) and pauses there.
+
+This replaced a flat round-4 checkpoint on 2026-08-17. The old rule fired on 41 of 76 plans in a month — roughly 1.3 interruptions a day, every one of them asking whether a document had converged rather than asking Atiba anything only he could answer. See "Stopping conditions" for the full measurement. In pause mode all of this is naturally satisfied, because you pause every round anyway.
 
 ## Round 0 — planner self-audit (before the first reviewer spawn)
 
 Before spawning round 1 (in **both** modes), run this fast checklist against your own plan and fix what it surfaces. It is a self-check, not a gate — its output is edits to the plan, then round 1 proceeds. It catches the cheap, high-frequency errors that otherwise each cost a full review round (the five most common historical misses):
 
+0. **Size declared, and it decides everything below.** Put `plan_size: small | standard | large` in the frontmatter. **small** = one surface, one actor, reversible, no money and no data loss. **standard** = multiple surfaces or a persistent write path, still one actor. **large** = more than one actor, grants access, spends money, or can lose data. Under-declaring to dodge the gates is the failure this creates, so declare honestly — the reviewer checks the claim first and reviews at the real size if it is wrong. **On a `small` plan, skip steps 9 and the Actor Walk entirely and keep the Assumption Ledger to only genuinely unverified premises** (one row, not a table). Write four sections — Problem, Approach, Test Plan, and the frontmatter — and go. A one-surface reversible fix does not earn an eleven-section document; the median plan in this workspace hit 424 lines while its Approach averaged five.
 1. **Refs grounded** — you opened every file / table / column / function / API field the plan cites and confirmed it exists and behaves as claimed.
 2. **Reuse verified** — every "reuse / extend / inherit / already-wired existing X" claim is checked by reading X, and you are not reinventing something that already exists.
 3. **Write paths idempotent** — every write / mutation / send path names its atomic claim / dedup key and its cron-retry / concurrency behavior.
@@ -86,11 +92,14 @@ Before spawning round 1 (in **both** modes), run this fast checklist against you
 6. **Owner-gate declared** — if the plan schedules a dated downstream auto-fire (a `schtasks`/cron/`.cmd` drop, a scheduled send, an auto-post) gated on an owner review, it declares a matching `owner_gates:` frontmatter entry so the surfacing gate can nudge before it fires. Run the deterministic check in the project (fail-silent if the script isn't present): `python scripts/owner_gate_check.py --check-plan <this-plan.md>` — a non-zero exit means the plan names a scheduling artifact but declares no `owner_gates` block; resolve it (add the block, or set `owner_gates_na: true` if it genuinely isn't owner-gated). (2026-07: the Dojo Kata Card-3 review gated a Wed auto-drop and nothing surfaced it.)
 7. **First-use declared** — a `type: build` plan must name who first USES the thing it builds, so a mechanism can't ship `done` with nobody assigned to its first real use (the failure that left a shipped publish pipe carrying zero documents). Run the deterministic check (fail-silent if the script isn't present): `python scripts/first_use_check.py --check-plan <this-plan.md>` — a non-zero exit means the build plan declares neither a `first_use:` block (`card`/`owner`/`due`) nor `first_use_na: true`; resolve it (add the block, or opt out if it genuinely has no first-use owner). (2026-07: docs/plans/2026-07-25-tenant-publish-phase2.md shipped `done` with no first-use card and went invisible the moment it was marked done.)
 8. **No work staged into future days** — the plan is built in one sitting the moment it is approved, so strip every timeline out of it: no "Week 1 / Week 2", no "this takes three weeks", no phase whose start date is later than today, nothing held back because it is large or "should settle first". A step may wait **only** on something real that hasn't happened yet (a person must answer, a payment must clear, a deploy must finish, a live run must produce data the next step needs) — and then name the blocker in one line, name what clears it, and date the step to the **next check on the blocker**. Ordering is fine; appointments are not. (2026-08-08, Atiba: "I want to finish the plan, and I want to finish it right now.")
-9. **Scope baseline captured** — write the `## Scope Baseline` section into the plan (see "Scope-delta tracking" below) **before** round 1. Without it there is nothing to diff the loop's revisions against, and drift becomes invisible.
+9. **Scope baseline captured** *(`standard` and `large` only — skip on `small`)* — write the `## Scope Baseline` section into the plan (see "Scope-delta tracking" below) **before** round 1. Without it there is nothing to diff the loop's revisions against, and drift becomes invisible.
+10. **Routing named** — if the plan sends anything to a person (work, a card, a notification, an approval, a review), name who and say in one line why not someone else. Look the owner up in `docs/reference/page-authority.yaml`, the project roster, or the staff manifest — never infer it. **Routing to Atiba because a filter would otherwise hide the item is a defect, not a design**; that is precisely how a staff member's request to update her own document became a card on his personal board on 2026-08-17. If the plan routes nothing to a person, say that.
 
 This is fast and round-saving. **Auto mode does NOT skip it.** Do not spawn the reviewer until you've run it and applied the fixes.
 
-## Scope-delta tracking — new/changed functionality (non-negotiable)
+## Scope-delta tracking — new/changed functionality (non-negotiable on `standard` and `large`)
+
+**Scoped by size.** `small` plans skip this whole section — no Scope Baseline, no New & Changed table. The drift it guards against needs a multi-round loop to happen, and a `small` plan gets two rounds against four sections. If a `small` plan starts growing capabilities, that is the signal it was never small: re-declare it `standard` and write the Baseline then.
 
 The loop's known failure mode is **silent scope drift**: a review round adds functionality nobody asked for, it lands in the plan body under the banner of "the reviewer required it," and it gets built. (Precedent: an RXGH product-listing plan came out of the loop carrying a prescription vs. non-prescription split that was never in the ask.) Defects are already reported every round. **Additions are not — this section fixes that.**
 
@@ -216,7 +225,7 @@ Look for the `**Verdict:**` line near the top. It will contain one of:
 
 **Auto mode (`--auto`):**
 - Edit the plan file in place immediately. No user prompt.
-- BUT: if this completes round 4 (or `--max` if lower), stop after the edits and surface to the user before spawning round 5. See "Stopping conditions".
+- BUT: if this completes the plan's size cap (small 2 / standard 4 / large 6, or `--max` if lower), or if a stopping condition fired — a point contested twice, or a `SCOPE-CHANGE`/`SCOPE-CUT` finding — stop after the edits and surface to the user before spawning the next round. See "Stopping conditions".
 
 In **both** modes, every round appends a structured entry to the plan's `## Review log` section at the bottom of the plan file. Format:
 
@@ -257,10 +266,19 @@ If verdict was `CHANGES REQUIRED` and no stopping condition is hit, increment th
 The loop stops when **any** of these is true:
 1. **APPROVED** verdict received.
 2. **NEEDS CLARIFICATION** verdict received.
-3. **Round count reached the cap** (default 4, or `--max=N` if set). Pause and ask the user whether to continue, abandon, or take over manually. Only proceed past the cap if they explicitly say to.
-4. **Round 4 reached in auto mode regardless of `--max`** — the hard rule. Even if `--max=10`, you stop at round 4 to give the human a checkpoint.
-5. **The reviewer is repeating itself** — if round N's review is substantively the same as round N-1's, the loop is thrashing. Stop and surface this to the user.
-6. **The user interrupts** (in pause mode, by saying "stop" / "don't apply" / etc.).
+3. **Deadlock — the same point is contested twice.** If a point you recorded under `**Contested:**` in one round comes back in a later round and you still disagree, stop and put it to the human. **This is the primary reason to interrupt a person**, because it is the only one that is genuinely their call: two informed parties disagree and neither can settle it from the artifact.
+4. **A finding would change or cut what the plan delivers.** Any `SCOPE-CHANGE` or `SCOPE-CUT` finding stops the loop. `SCOPE-ADD (optional)` does not — decline it in the Review log and carry on.
+5. **Round count reached the cap** — `small` plans **2**, `standard` **4**, `large` **6**, or `--max=N` if set. Pause and ask whether to continue, abandon, or take over.
+6. **The reviewer is repeating itself** — if round N's review is substantively the same as round N-1's, the loop is thrashing. Stop and surface this to the user.
+7. **The user interrupts** (in pause mode, by saying "stop" / "don't apply" / etc.).
+
+### Why the round-4 hard checkpoint is gone
+
+It was replaced by conditions 3 and 4 on 2026-08-17, on measured evidence, not preference. Over 2026-07-17..08-17, **41 of 76 plans reached round 4** and forced a checkpoint — about 1.3 interruptions a day, none of which asked Atiba a question about the business; each asked whether a document had converged. Meanwhile the delivery gain from those rounds was five points (plans shipped 54% of the time at 3–4 rounds, 59% at 5+).
+
+**Rounds are not the signal. Disagreement is.** A loop that is converging should be left alone; a loop where the planner and reviewer genuinely cannot agree needs a human immediately, and it should not have to wait for round 4 to get one. Condition 3 fires *earlier* than the old cap in the cases that matter and never fires in the cases that didn't.
+
+**What this does not license:** running unattended forever. The size caps in condition 5 still bind, thrash-detection still binds, and scope changes still stop the loop.
 
 ## Output to the user
 
@@ -291,7 +309,8 @@ Auto mode without honest pushback collapses into the planner agreeing with every
 
 - Do not edit any file other than the plan file and (transitively, via the subagent) the `_review.md` file.
 - Do not write code based on the plan. This skill orchestrates planning, not implementation.
-- Do not skip the round-4 human checkpoint.
+- Do not skip a deadlock checkpoint — a point contested twice, or a `SCOPE-CHANGE`/`SCOPE-CUT` finding, goes to the human before the next round. Do not substitute a round counter for this; the counter was measured and it interrupted 41 times in a month without asking a single business question.
+- Do not demand, or let the reviewer demand, a section the plan's `plan_size` does not require. On a `small` plan that means no Actor Walk, no Scope Baseline, no New & Changed table — see the size table in `reviewer/SKILL.md`.
 - Do not claim the loop is complete unless a stopping condition was actually hit.
 - Do not let functionality into the plan without a `NEW`/`CHANGED` row — not even when the reviewer demanded it, and not in `--auto`. Autonomous revision is authorised; autonomous scope expansion is not.
 - Do not edit the `## Scope Baseline` after round 1. It is the anchor the diff is measured from; editing it to match the revised plan erases the drift it exists to expose.
