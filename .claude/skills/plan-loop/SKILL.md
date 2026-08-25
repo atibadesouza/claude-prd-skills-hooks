@@ -101,6 +101,11 @@ This is fast and round-saving. **Auto mode does NOT skip it.** Do not spawn the 
 
 ### Round 0.5 — the outside read (a second vendor, before the first review round)
 
+**This is ON by default.** `--crossvendor` takes `on` (the default), `shadow` (run and record
+everything, never reopen a round), or `off` (do not call the second vendor at all). Atiba switched it
+on on 2026-08-25, having approved sending whole plan bodies to OpenAI; before that date it was built
+but never fired automatically. Nothing needs to be passed to get it.
+
 After the self-audit and **before spawning round 1**, unless `--crossvendor=off` or the plan is `small`:
 
 ```bash
@@ -222,7 +227,7 @@ Look for the `**Verdict:**` line near the top. It will contain one of:
 ### 4. Branch on verdict
 
 **APPROVED:**
-- **First, on a `large` plan with `--crossvendor=on|shadow`: the loop is NOT done yet.** Run the refutation pass before anything else, and do not treat the approval as terminal until that pass has been **resolved**:
+- **First, on a `large` plan — unless `--crossvendor=off` — the loop is NOT done yet.** Run the refutation pass before anything else, and do not treat the approval as terminal until that pass has been **resolved**:
 
   ```bash
   python ~/.claude/global/bin/crossvendor_review.py refute <plan.md> --approval <plan>_review.md
