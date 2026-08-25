@@ -1,7 +1,7 @@
 ---
 name: plan-loop
 description: Orchestrate the plan ↔ reviewer loop in a single chat. Spawns the `reviewer` skill as a subagent, parses its verdict, revises the plan in place, and re-spawns until APPROVED or a stopping condition is hit. Defaults to pausing each round for human approval; pass `--auto` for autonomous revision. Interrupts the human on deadlock (the same point contested twice) or a scope change — not on a round number. Round caps scale with the plan's declared size: small 2, standard 4, large 6.
-argument-hint: [plan path | empty for latest docs/plans/*.md] [--auto] [--max=N]
+argument-hint: [plan path | empty for latest docs/plans/*.md] [--auto] [--max=N] [--crossvendor=on|shadow|off]
 requires:
   - skill: reviewer
     reason: "the loop's whole mechanism - SKILL.md:139-142 briefs a subagent to invoke it"
@@ -74,6 +74,7 @@ Always echo the resolved path back to the user at loop start so they can catch a
 
 1. **The same point is contested twice.** You recorded it under `**Contested:**`, the reviewer raised it again, and you still disagree. Neither of you can settle it from the artifact, which is the definition of a decision that belongs to a person.
 2. **A finding would change or cut what the plan delivers** (`SCOPE-CHANGE` / `SCOPE-CUT`). An optional addition is not this — decline it and continue.
+3. **A cross-vendor refutation survives re-review.** The refutation pass reopened the loop once, the revised plan was re-approved, and the second vendor refuted it again at 75 or above. Two vendors disagree about whether the plan is sound and neither can settle it from the artifact — which is the same shape as item 1, one layer out.
 
 Beyond that, the loop runs to its size cap (small 2, standard 4, large 6, or `--max`) and pauses there.
 
@@ -97,6 +98,21 @@ Before spawning round 1 (in **both** modes), run this fast checklist against you
 10. **Routing named** — if the plan sends anything to a person (work, a card, a notification, an approval, a review), name who and say in one line why not someone else. Look the owner up in `docs/reference/page-authority.yaml`, the project roster, or the staff manifest — never infer it. **Routing to Atiba because a filter would otherwise hide the item is a defect, not a design**; that is precisely how a staff member's request to update her own document became a card on his personal board on 2026-08-17. If the plan routes nothing to a person, say that.
 
 This is fast and round-saving. **Auto mode does NOT skip it.** Do not spawn the reviewer until you've run it and applied the fixes.
+
+### Round 0.5 — the outside read (a second vendor, before the first review round)
+
+After the self-audit and **before spawning round 1**, unless `--crossvendor=off` or the plan is `small`:
+
+```bash
+python ~/.claude/global/bin/crossvendor_review.py outside-read <plan.md> --ask <the human's request>
+```
+
+A different AI vendor reads the plan and answers one question: **what does this plan not even consider?** It issues no verdict, blocks nothing, and returns at most five items, each anchored to a line it actually read. It runs **once per loop, never per round** — and the script refuses a repeat call itself rather than trusting this sentence.
+
+- **`--ask` must be the human's own words, verbatim.** That is the entire point: a fresh context cannot compensate for being handed your paraphrase of the request, which carries your framing on the one side it cannot repair. Save the human's request to a file at Round 0 and pass that path. If you genuinely cannot, pass `--ask-reconstructed` so the row records it — never silently pass a summary as verbatim.
+- **Answer every item in the Review log**, under a `**Outside read:**` block — accepted and the plan changed, refuted with a quoted artifact, or explicitly open. **Cite the row id** the script prints; that citation is how the measurement later derives whether the item was worth anything, so an unanswered item is a gap in the measurement, not just in the review.
+- **A skip is a normal outcome, not a failure.** No key, no script, or the ceiling reached: it says so loudly, stamps the plan `crossvendor: one-vendor (<reason>)`, and the loop continues to round 1 unchanged.
+- It is skipped on `small` plans during the measurement period: a one-surface reversible change gets four sections by design, so asking what it omits will always find something and each find costs a written answer.
 
 ## Scope-delta tracking — new/changed functionality (non-negotiable on `standard` and `large`)
 
@@ -206,7 +222,21 @@ Look for the `**Verdict:**` line near the top. It will contain one of:
 ### 4. Branch on verdict
 
 **APPROVED:**
-- Loop is done. Append a final entry to the plan's `## Review log` noting the round number and "Approved by reviewer". Refresh the `## New & Changed Functionality` section (section C above) — an APPROVED verdict does **not** exempt the loop from reporting drift; a reviewer approves correctness, not scope. Report to the user with the plan path, round count, and the drift rows first. Stop.
+- **First, on a `large` plan with `--crossvendor=on|shadow`: the loop is NOT done yet.** Run the refutation pass before anything else, and do not treat the approval as terminal until that pass has been **resolved**:
+
+  ```bash
+  python ~/.claude/global/bin/crossvendor_review.py refute <plan.md> --approval <plan>_review.md
+  ```
+
+  **"Resolved" and not "run" is load-bearing.** The pass has three documented ways of never running — no OpenAI key, the script not installed in this environment, or the daily call ceiling reached — and a cloud session or Actions runner hits all three. A loud skip *resolves* it. Waiting for it to have *run* would leave a `large` plan reaching approval in those environments with no defined stop at all.
+
+  - **Skipped** (any of the three) — resolved. The plan is stamped `crossvendor: one-vendor (<reason>)` in its own frontmatter; note it in the Review log and continue to the normal APPROVED handling below.
+  - **No refutation at 75 or above** — resolved. The approval stands. Continue below.
+  - **A refutation at 75 or above** — **reopen the loop for exactly one more round.** That round is granted *outside* the size cap, because refusing it at the cap would disable the mechanism precisely on the hardest plans. Record the refutation in the Review log, revise, and re-review. If the re-approval is refuted again at 75+, that is stopping condition 8 — hand it to Atiba, do not grant a second reopen.
+  - `--crossvendor=shadow` runs the pass and records everything but never reopens a round.
+  - On any plan that is not `large`, or with `--crossvendor=off`, APPROVED terminates exactly as it always has.
+
+- Then: loop is done. Append a final entry to the plan's `## Review log` noting the round number and "Approved by reviewer". Refresh the `## New & Changed Functionality` section (section C above) — an APPROVED verdict does **not** exempt the loop from reporting drift; a reviewer approves correctness, not scope. Report to the user with the plan path, round count, and the drift rows first. Stop.
 
 **NEEDS CLARIFICATION:**
 - The reviewer is asking the *human*, not you. Stop the loop regardless of mode. Show the user the reviewer's questions verbatim and wait for their answers. Do not attempt to answer the questions yourself — the reviewer already determined they require human input.
@@ -272,6 +302,7 @@ The loop stops when **any** of these is true:
 5. **Round count reached the cap** — `small` plans **2**, `standard` **4**, `large` **6**, or `--max=N` if set. Pause and ask whether to continue, abandon, or take over.
 6. **The reviewer is repeating itself** — if round N's review is substantively the same as round N-1's, the loop is thrashing. Stop and surface this to the user.
 7. **The user interrupts** (in pause mode, by saying "stop" / "don't apply" / etc.).
+8. **A cross-vendor refutation survives re-review** — the refutation pass reopened the loop once, the plan was re-approved, and the second vendor refuted the re-approval at 75 or above. Hand it to the human with both the refutation and the reviewer's position on the page. This is a *different* condition from 4: 4 is about what the plan delivers, 8 is about whether it is right.
 
 ### Why the round-4 hard checkpoint is gone
 
