@@ -1,7 +1,7 @@
 ---
 name: plan-loop
-description: Orchestrate the plan ↔ reviewer loop in a single chat. Spawns the `reviewer` skill as a subagent, parses its verdict, revises the plan in place, and re-spawns until APPROVED or a stopping condition is hit. Defaults to pausing each round for human approval; pass `--auto` for autonomous revision. Interrupts the human on deadlock (the same point contested twice) or a scope change — not on a round number. Round caps scale with the plan's declared size: small 2, standard 4, large 6.
-argument-hint: [plan path | empty for latest docs/plans/*.md] [--auto] [--max=N] [--crossvendor=on|shadow|off]
+description: Orchestrate the plan ↔ reviewer loop in a single chat. Spawns the `reviewer` skill as a subagent, parses its verdict, revises the plan in place, and re-spawns until APPROVED or a stopping condition is hit. Defaults to pausing each round for human approval; pass `--auto` for autonomous revision. Interrupts the human on deadlock (the same point contested twice) or a scope change — not on a round number. Round caps scale with the plan's declared size: small 2, standard 4, large 6. On standard and large plans the reviewer alternates by round: odd rounds are reviewed by OpenAI against an evidence pack of the files the plan cites, even rounds by the Claude subagent, and an OpenAI approval is never terminal — Claude confirms it once, outside the cap. Small plans stay Claude-only.
+argument-hint: [plan path | empty for latest docs/plans/*.md] [--auto] [--max=N] [--crossvendor=on|shadow|off] [--alternate=on|off]
 requires:
   - skill: reviewer
     reason: "the loop's whole mechanism - SKILL.md:139-142 briefs a subagent to invoke it"
@@ -53,6 +53,8 @@ The Review log's `**Contested:**` section is where pushback lives. Use it. If a 
 - **A plan path** — e.g. `docs/plans/2026-05-10-foo.md`.
 - **`--auto`** — autonomous mode. Revise + re-spawn reviewer without pausing between rounds.
 - **`--max=N`** — override the round cap, which otherwise comes from the plan's `plan_size`: **small 2, standard 4, large 6**. The cap applies in both modes.
+- **`--alternate=on|off`** — default **on**. Odd rounds are reviewed by OpenAI, even rounds by the Claude reviewer subagent, on `standard` and `large` plans. `off` restores the old behaviour completely: Claude reviews every round, Round 0.5 runs, OpenAI refutes approvals. See "Which vendor reviews this round" below.
+- **`--crossvendor=on|shadow|off`** — `off` wins over everything and makes no OpenAI call of any kind, alternation included. `shadow` runs the OpenAI review, writes it beside the real one, and still lets Claude decide the round.
 
 If no flag is passed, mode is **pause** (default).
 
@@ -106,7 +108,9 @@ everything, never reopen a round), or `off` (do not call the second vendor at al
 on on 2026-08-25, having approved sending whole plan bodies to OpenAI; before that date it was built
 but never fired automatically. Nothing needs to be passed to get it.
 
-After the self-audit and **before spawning round 1**, unless `--crossvendor=off` or the plan is `small`:
+**It does not run while alternation is on.** Under alternation, round 1 *is* OpenAI — reading the same plan, with the codebase attached and a much wider remit. Running both would spend two calls and two written answers on overlapping questions, and the weaker one would go first. `--alternate=off` restores it exactly as described below; `--crossvendor=off` disables everything OpenAI in one flag.
+
+After the self-audit and **before spawning round 1**, when alternation is off, and unless `--crossvendor=off` or the plan is `small`:
 
 ```bash
 python ~/.claude/global/bin/crossvendor_review.py outside-read <plan.md> --ask <the human's request>
@@ -117,7 +121,7 @@ A different AI vendor reads the plan and answers one question: **what does this 
 - **`--ask` must be the human's own words, verbatim.** That is the entire point: a fresh context cannot compensate for being handed your paraphrase of the request, which carries your framing on the one side it cannot repair. Save the human's request to a file at Round 0 and pass that path. If you genuinely cannot, pass `--ask-reconstructed` so the row records it — never silently pass a summary as verbatim.
 - **Answer every item in the Review log**, under a `**Outside read:**` block — accepted and the plan changed, refuted with a quoted artifact, or explicitly open. **Cite the row id** the script prints; that citation is how the measurement later derives whether the item was worth anything, so an unanswered item is a gap in the measurement, not just in the review.
 - **A skip is a normal outcome, not a failure.** No key, no script, or the ceiling reached: it says so loudly, stamps the plan `crossvendor: one-vendor (<reason>)`, and the loop continues to round 1 unchanged.
-- It is skipped on `small` plans during the measurement period: a one-surface reversible change gets four sections by design, so asking what it omits will always find something and each find costs a written answer.
+- It is skipped on `small` plans: a one-surface reversible change gets four sections by design, so asking what it omits will always find something and each find costs a written answer. **`small` plans are excluded from every OpenAI call, this one and the alternating review both** — Atiba, 2026-08-28: *"small plans stay in claude"*.
 
 ## Scope-delta tracking — new/changed functionality (non-negotiable on `standard` and `large`)
 
@@ -193,6 +197,28 @@ If there is genuinely no drift, still write the section with the single line `No
 
 For each round (1, 2, 3, ...):
 
+### 0. Which vendor reviews this round
+
+**On `standard` and `large` plans, odd rounds (1, 3, 5) are reviewed by OpenAI and even rounds (2, 4, 6) by the Claude reviewer subagent.** Both write the identical `<plan>_review.md` file, so everything downstream — reading the file, parsing the verdict, the Review log, the drift table, the stopping conditions — is unchanged.
+
+**`small` plans do not alternate.** Claude reviews every round, exactly as before (Atiba, 2026-08-28: *"small plans stay in claude"*). The script refuses a `small` plan on its own, so this is enforced rather than remembered.
+
+On an odd round, run:
+
+```bash
+python ~/.claude/global/bin/crossvendor_review.py review <plan.md> --round <N>
+```
+
+**Read the exit code, not the output.**
+
+- **`0`** — the review was written to `<plan>_review.md`. Go to step 2 and read the file. **Do not also spawn the Claude subagent for this round.**
+- **`3`** — a loud skip. OpenAI could not run (no key, either ceiling, a cloud or Actions runner, an empty or unparseable reply, a failed write). **Spawn the Claude reviewer subagent for this same round**, exactly as on an even round, and record `reviewer: claude (openai skipped — <reason>)` in the Review log. The round still happens; nothing is left unreviewed.
+- **`2`** — a usage error (an even round, or a `small` plan). Spawn Claude.
+
+Under `--crossvendor=shadow`, run the OpenAI review with `--out <plan>_review.openai.md` **and** spawn the Claude subagent for that round. Claude's verdict drives the loop; the OpenAI review sits beside it for comparison. That is the mode to run for the first week.
+
+Under `--alternate=off` or `--crossvendor=off`, skip this step entirely — Claude reviews every round.
+
 ### 1. Spawn the reviewer subagent
 
 Use the Agent tool. Pass the plan path as the prompt argument so the reviewer skill can resolve it. Brief the agent to invoke the `reviewer` skill:
@@ -227,7 +253,17 @@ Look for the `**Verdict:**` line near the top. It will contain one of:
 ### 4. Branch on verdict
 
 **APPROVED:**
-- **First, on a `large` plan — unless `--crossvendor=off` — the loop is NOT done yet.** Run the refutation pass before anything else, and do not treat the approval as terminal until that pass has been **resolved**:
+
+- **First of all — an approval by OpenAI is never terminal.** Read the `**Reviewer:**` line of the review file. If it says `openai/...`, the approval is **recorded, not acted on**: spawn the Claude reviewer subagent for one confirmation round, and only then continue below.
+
+  - The trigger is **who reviewed**, not the round number. Two paths make an *odd* round a *Claude* round — shadow mode, and every skipped odd round, which is every odd round on a cloud or Actions runner. Keying on parity would spend a Claude-confirms-Claude round on those paths, and that round can teach nobody anything. **A Claude approval on an odd round is terminal exactly as it is today.**
+  - A review file with **no** `**Reviewer:**` line is a Claude review. The reviewer skill does not write that line and is not changing, so absence means Claude and only an explicit `openai/...` holds the loop open.
+  - The confirmation round is an ordinary round — same subagent, same skill, same `_review.md` — and it is granted **outside the size cap**, on the precedent the refutation reopen already sets. Two vendors disagreeing is the thing this mechanism exists to produce; it must not cost an interruption.
+  - If the confirmation returns `CHANGES REQUIRED`, continue normally from that round number. Parity is unbroken: the confirmation was round 2, so round 3 goes back to OpenAI. The recorded approval is superseded, not held.
+  - If it approves, the loop ends and **every plan OpenAI approved has also been read by Claude**. Note both verdicts in the Review log.
+  - This does not make every approved plan a two-vendor plan. Whenever OpenAI cannot run at all, Claude reviews every round and approves alone, exactly as before — the frontmatter stamp says `one-vendor (<reason>)` so a reader can tell. What this guarantees is narrower and is the part that matters: **OpenAI never approves a plan on its own.**
+
+- **Then, on a `large` plan — unless `--crossvendor=off` — the loop is NOT done yet.** Run the refutation pass before anything else, and do not treat the approval as terminal until that pass has been **resolved**:
 
   ```bash
   python ~/.claude/global/bin/crossvendor_review.py refute <plan.md> --approval <plan>_review.md
@@ -239,12 +275,15 @@ Look for the `**Verdict:**` line near the top. It will contain one of:
   - **No refutation at 75 or above** — resolved. The approval stands. Continue below.
   - **A refutation at 75 or above** — **reopen the loop for exactly one more round.** That round is granted *outside* the size cap, because refusing it at the cap would disable the mechanism precisely on the hardest plans. Record the refutation in the Review log, revise, and re-review. If the re-approval is refuted again at 75+, that is stopping condition 8 — hand it to Atiba, do not grant a second reopen.
   - `--crossvendor=shadow` runs the pass and records everything but never reopens a round.
-  - On any plan that is not `large`, or with `--crossvendor=off`, APPROVED terminates exactly as it always has.
+  - On any plan that is not `large`, or with `--crossvendor=off`, APPROVED terminates exactly as it always has **once the confirmation round above has been satisfied**. Be precise about where the guarantee comes from on those sizes: no refutation runs at all on `small` or `standard`, so there the confirmation round is not one of two protections against a one-vendor approval — **it is the only one.**
+  - The refutation reads the approving review's `**Reviewer:**` line rather than inferring the vendor from the round number, so it is vendor-opposite by construction. After the rule above, the approval that ends the loop is always Claude's, and the existing `refute` call already sends it to OpenAI. No selector, and no selector to get wrong.
 
 - Then: loop is done. Append a final entry to the plan's `## Review log` noting the round number and "Approved by reviewer". Refresh the `## New & Changed Functionality` section (section C above) — an APPROVED verdict does **not** exempt the loop from reporting drift; a reviewer approves correctness, not scope. Report to the user with the plan path, round count, and the drift rows first. Stop.
 
 **NEEDS CLARIFICATION:**
-- The reviewer is asking the *human*, not you. Stop the loop regardless of mode. Show the user the reviewer's questions verbatim and wait for their answers. Do not attempt to answer the questions yourself — the reviewer already determined they require human input.
+- **From OpenAI, this is held exactly like an approval, and that is not a footnote.** The likeliest reason a reviewer with no filesystem cannot answer something is that the file was not in its evidence pack — and putting that in front of a person spends his attention on a question a reviewer who can open the file would simply have looked up. So an OpenAI `NEEDS CLARIFICATION` triggers the Claude confirmation round, carrying the questions with it. Claude answers what it can from disk and reviews normally. Only if **Claude** also needs the human does the loop stop and ask. A question that survives a reviewer who can open the files is a real question.
+- It also earns its keep as a measurement: an OpenAI clarification that Claude resolves by opening one file is a reading on the evidence pack. Log it as one and fix the pack, today, not at the monthly check.
+- **From Claude, unchanged:** the reviewer is asking the *human*, not you. Stop the loop regardless of mode. Show the user the reviewer's questions verbatim and wait for their answers. Do not attempt to answer the questions yourself — the reviewer already determined they require human input.
 
 **CHANGES REQUIRED:**
 - Read the full review (Issues, Hidden assumptions, Blindspots, Recommended course of action).
@@ -268,7 +307,7 @@ In **both** modes, every round appends a structured entry to the plan's `## Revi
 ```markdown
 ## Review log
 
-### Round N — <YYYY-MM-DD>
+### Round N — <YYYY-MM-DD> — reviewer: <claude (subagent) | openai/<model> (row <id>) | claude (openai skipped — <reason>)>
 
 **Reviewer verdict:** CHANGES REQUIRED
 
@@ -276,10 +315,10 @@ In **both** modes, every round appends a structured entry to the plan's `## Revi
 - <one-line per issue the reviewer raised>
 
 **Accepted:**
-- <issue title> — <one line on what changed in the plan body>
+- <issue title> — <one line on what changed in the plan body> — <row-id>#<n>
 
 **Contested:**
-- <issue title> — <reasoning for pushing back; reviewer should reconsider in the next round>
+- <issue title> — <reasoning for pushing back; reviewer should reconsider in the next round> — <row-id>#<n>
 
 **Functionality delta:**
 - `NEW` <capability> — origin: reviewer:<issue title> — <why>
@@ -293,6 +332,8 @@ _(or: `none beyond FIX` when the round added, altered, and cut nothing.)_
 
 Create the `## Review log` section if it doesn't exist yet (place it at the very bottom of the plan file).
 
+**Cite every OpenAI finding individually, as `<row-id>#<n>`, on the line that accepts or contests it.** The row id is printed by the script; `n` is the finding's position in that review. This is not bookkeeping — it is the only thing that makes "were these reviews worth their rounds?" a readable number. `crossvendor_review.py verdict` derives each finding's worth from what the plan says about it, and **one review round is one row carrying many findings, answered individually**. Cite only the bare row id and every finding on it is unreadable: the contested ones cannot be told from the accepted ones, and the "a majority of findings were contested" reversal trigger sits at zero while looking live. The `verdict` subcommand counts and prints how many findings are in that state rather than guessing at them.
+
 ### 6. Loop or stop
 
 If verdict was `CHANGES REQUIRED` and no stopping condition is hit, increment the round counter and go back to step 1.
@@ -300,8 +341,8 @@ If verdict was `CHANGES REQUIRED` and no stopping condition is hit, increment th
 ## Stopping conditions
 
 The loop stops when **any** of these is true:
-1. **APPROVED** verdict received.
-2. **NEEDS CLARIFICATION** verdict received.
+1. **APPROVED** verdict received **from Claude**. An OpenAI approval does not stop the loop — it triggers the confirmation round in step 4 and stops only if that round also approves.
+2. **NEEDS CLARIFICATION** verdict received **from Claude**. An OpenAI clarification is held the same way, for the same reason: the question is usually about a file OpenAI was not sent.
 3. **Deadlock — the same point is contested twice.** If a point you recorded under `**Contested:**` in one round comes back in a later round and you still disagree, stop and put it to the human. **This is the primary reason to interrupt a person**, because it is the only one that is genuinely their call: two informed parties disagree and neither can settle it from the artifact.
 4. **A finding would change or cut what the plan delivers.** Any `SCOPE-CHANGE` or `SCOPE-CUT` finding stops the loop. `SCOPE-ADD (optional)` does not — decline it in the Review log and carry on.
 5. **Round count reached the cap** — `small` plans **2**, `standard` **4**, `large` **6**, or `--max=N` if set. Pause and ask whether to continue, abandon, or take over.
