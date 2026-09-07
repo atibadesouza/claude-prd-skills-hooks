@@ -212,7 +212,7 @@ python ~/.claude/global/bin/crossvendor_review.py review <plan.md> --round <N>
 **Read the exit code, not the output.**
 
 - **`0`** — the review was written to `<plan>_review.md`. Go to step 2 and read the file. **Do not also spawn the Claude subagent for this round.**
-- **`3`** — a loud skip. OpenAI could not run (no key, either ceiling, a cloud or Actions runner, an empty or unparseable reply, a failed write). **Spawn the Claude reviewer subagent for this same round**, exactly as on an even round, and record `reviewer: claude (openai skipped — <reason>)` in the Review log. The round still happens; nothing is left unreviewed.
+- **`3`** — a loud skip. OpenAI could not run (no key, either ceiling, a cloud or Actions runner, an empty or unparseable reply, a failed write) **or it was refused because the evidence pack was short of what the plan points at** — a file outside the folders the review may read, one withheld for security, one that names several files, or a declared set too large to send. The message names each file and why. A handicapped reviewer is worse than no review at all (Atiba, 2026-09-07), so this outcome is the gate working, not a failure. **Spawn the Claude reviewer subagent for this same round**, exactly as on an even round, and record `reviewer: claude (openai skipped — <reason>)` in the Review log. The round still happens; nothing is left unreviewed.
 - **`2`** — a usage error (an even round, or a `small` plan). Spawn Claude.
 
 Under `--crossvendor=shadow`, run the OpenAI review with `--out <plan>_review.openai.md` **and** spawn the Claude subagent for that round. Claude's verdict drives the loop; the OpenAI review sits beside it for comparison. That is the mode to run for the first week.
