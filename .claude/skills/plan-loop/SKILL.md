@@ -1,6 +1,6 @@
 ---
 name: plan-loop
-description: Orchestrate the plan ↔ reviewer loop in a single chat. Spawns the `reviewer` skill as a subagent, parses its verdict, revises the plan in place, and re-spawns until APPROVED or a stopping condition is hit. Defaults to pausing each round for human approval; pass `--auto` for autonomous revision. Interrupts the human on deadlock (the same point contested twice) or a scope change — not on a round number. Round caps scale with the plan's declared size: small 2, standard 4, large 6. On standard and large plans the reviewer alternates by round: odd rounds are reviewed by OpenAI against an evidence pack of the files the plan cites, even rounds by the Claude subagent, and an OpenAI approval is never terminal — Claude confirms it once, outside the cap. Small plans stay Claude-only.
+description: Orchestrate the plan ↔ reviewer loop in a single chat. Spawns the `reviewer` skill as a subagent, parses its verdict, revises the plan in place, and re-spawns until APPROVED or a stopping condition is hit. Defaults to pausing each round for human approval; pass `--auto` for autonomous revision. Interrupts the human on deadlock (the same point contested twice) or a scope change — not on a round number. Runs until APPROVED - the size number (small 2, standard 4, large 6) is a checkpoint, not a stop - then a final check re-reviews any text edited after approval. On standard and large plans the reviewer alternates by round: odd rounds are reviewed by OpenAI against an evidence pack of the files the plan cites, even rounds by the Claude subagent, and an OpenAI approval is never terminal — Claude confirms it once, outside the cap. Small plans stay Claude-only.
 argument-hint: [plan path | empty for latest docs/plans/*.md] [--auto] [--max=N] [--crossvendor=on|shadow|off] [--alternate=on|off]
 requires:
   - skill: reviewer
@@ -52,7 +52,7 @@ The Review log's `**Contested:**` section is where pushback lives. Use it. If a 
 `$ARGUMENTS` may contain, in any order:
 - **A plan path** — e.g. `docs/plans/2026-05-10-foo.md`.
 - **`--auto`** — autonomous mode. Revise + re-spawn reviewer without pausing between rounds.
-- **`--max=N`** — override the round cap, which otherwise comes from the plan's `plan_size`: **small 2, standard 4, large 6**. The cap applies in both modes.
+- **`--max=N`** — override the size checkpoint, which otherwise comes from the plan's `plan_size`: **small 2, standard 4, large 6**. Reaching it prints a one-line notice and the loop **carries on** — it is not a stop (see stopping condition 5).
 - **`--alternate=on|off`** — default **on**. Odd rounds are reviewed by OpenAI, even rounds by the Claude reviewer subagent, on `standard` and `large` plans. `off` restores the old behaviour completely: Claude reviews every round, Round 0.5 runs, OpenAI refutes approvals. See "Which vendor reviews this round" below.
 - **`--crossvendor=on|shadow|off`** — `off` wins over everything and makes no OpenAI call of any kind, alternation included. `shadow` runs the OpenAI review, writes it beside the real one, and still lets Claude decide the round.
 
@@ -78,7 +78,7 @@ Always echo the resolved path back to the user at loop start so they can catch a
 2. **A finding would change or cut what the plan delivers** (`SCOPE-CHANGE` / `SCOPE-CUT`). An optional addition is not this — decline it and continue.
 3. **A cross-vendor refutation survives re-review.** The refutation pass reopened the loop once, the revised plan was re-approved, and the second vendor refuted it again at 75 or above. Two vendors disagree about whether the plan is sound and neither can settle it from the artifact — which is the same shape as item 1, one layer out.
 
-Beyond that, the loop runs to its size cap (small 2, standard 4, large 6, or `--max`) and pauses there.
+Beyond that, **the loop runs until the plan is APPROVED** (Atiba, 2026-09-26: *"The goal with reviews is always to get to approved... If it doesn't get to approved, then it needs to continue."*). The size number (small 2, standard 4, large 6, or `--max`) is a checkpoint that prints one line, not a place the loop ends. Then the **final check** below runs on the text that will actually be built.
 
 This replaced a flat round-4 checkpoint on 2026-08-17. The old rule fired on 41 of 76 plans in a month — roughly 1.3 interruptions a day, every one of them asking whether a document had converged rather than asking Atiba anything only he could answer. See "Stopping conditions" for the full measurement. In pause mode all of this is naturally satisfied, because you pause every round anyway.
 
@@ -302,7 +302,7 @@ Look for the `**Verdict:**` line near the top. It will contain one of:
 
 **Auto mode (`--auto`):**
 - Edit the plan file in place immediately. No user prompt.
-- BUT: if this completes the plan's size cap (small 2 / standard 4 / large 6, or `--max` if lower), or if a stopping condition fired — a point contested twice, or a `SCOPE-CHANGE`/`SCOPE-CUT` finding — stop after the edits and surface to the user before spawning the next round. See "Stopping conditions".
+- BUT: if a stopping condition fired — a point contested twice, or a `SCOPE-CHANGE`/`SCOPE-CUT` finding — stop after the edits and surface to the user before spawning the next round. See "Stopping conditions". Reaching the size checkpoint is **not** one of these: print the one-line notice and spawn the next round.
 
 In **both** modes, every round appends a structured entry to the plan's `## Review log` section at the bottom of the plan file. Format:
 
@@ -347,7 +347,7 @@ The loop stops when **any** of these is true:
 2. **NEEDS CLARIFICATION** verdict received **from Claude**. An OpenAI clarification is held the same way, for the same reason: the question is usually about a file OpenAI was not sent.
 3. **Deadlock — the same point is contested twice.** If a point you recorded under `**Contested:**` in one round comes back in a later round and you still disagree, stop and put it to the human. **This is the primary reason to interrupt a person**, because it is the only one that is genuinely their call: two informed parties disagree and neither can settle it from the artifact.
 4. **A finding would change or cut what the plan delivers.** Any `SCOPE-CHANGE` or `SCOPE-CUT` finding stops the loop. `SCOPE-ADD (optional)` does not — decline it in the Review log and carry on.
-5. **Round count reached the cap** — `small` plans **2**, `standard` **4**, `large` **6**, or `--max=N` if set. Pause and ask whether to continue, abandon, or take over.
+5. ~~Round count reached the cap~~ — **removed 2026-09-26. Not approved means not finished, so the loop continues.** At `small` **2**, `standard` **4**, `large` **6** (or `--max=N`) print one line — "Round N reached the size checkpoint, still CHANGES REQUIRED, continuing" — and spawn the next round. Never record a loop as ended with `cap-reached` in `plan_loop:`; that state no longer exists. What still ends a long loop is a real signal: deadlock (3), scope (4), thrash (6), or the user (7).
 6. **The reviewer is repeating itself** — if round N's review is substantively the same as round N-1's, the loop is thrashing. Stop and surface this to the user.
 7. **The user interrupts** (in pause mode, by saying "stop" / "don't apply" / etc.).
 8. **A cross-vendor refutation survives re-review** — the refutation pass reopened the loop once, the plan was re-approved, and the second vendor refuted the re-approval at 75 or above. Hand it to the human with both the refutation and the reviewer's position on the page. This is a *different* condition from 4: 4 is about what the plan delivers, 8 is about whether it is right.
@@ -358,11 +358,25 @@ It was replaced by conditions 3 and 4 on 2026-08-17, on measured evidence, not p
 
 **Rounds are not the signal. Disagreement is.** A loop that is converging should be left alone; a loop where the planner and reviewer genuinely cannot agree needs a human immediately, and it should not have to wait for round 4 to get one. Condition 3 fires *earlier* than the old cap in the cases that matter and never fires in the cases that didn't.
 
-**What this does not license:** running unattended forever. The size caps in condition 5 still bind, thrash-detection still binds, and scope changes still stop the loop.
+**What this does not license:** running unattended forever. Thrash-detection (6) still binds, a point contested twice still stops the loop, and scope changes still stop it. Those are the brakes; a round counter is not.
+
+### Why the size cap no longer ends the loop (2026-09-26)
+
+Of ten plans traced round by round, **six ended at the cap without an approval** and one gave up at round 5 — so the plans that most needed review stopped getting it. On the four plans traced from before round 1, rounds 1–3 first raised 60 of the 67 material problems the loop found, but the 7 found in rounds 4–9 included a forged-sender email hole, a prompt edit that would have shipped as a no-op while failing 17 queued rows, articles that could publish before their own event, and new fields with no migration. A build does not catch those cheaply — they ship silently. Atiba: *"measure twice, cut once."* Evidence: `docs/audits/2026-09-26-reviewer-model-bakeoff/README.md` in the Atiba Projects workspace.
+
+## The final check — the text that gets built is the text that got reviewed
+
+**After the loop reaches APPROVED, compare the plan on disk with the text the approving reviewer saw.** Any edit made after that review — applying Atiba's keep/cut answers on drift rows, applying a decision he made in chat, a Housekeeping sweep, a status change that also touched the body — means the approved text is not the text that will be built.
+
+- **If the body changed after the approving round**, spawn one more Claude reviewer round on the final text, headed `### Final check — <date>` in the Review log. It reviews the whole plan, with particular attention to whatever changed since approval.
+- **If it returns CHANGES REQUIRED**, fix and run the final check again. It is part of the loop, so the same rule applies: not approved means not finished.
+- **If only frontmatter status fields changed**, no final check is needed — say so in one line in the final report.
+- **Why:** in the same trace, one-shot reviews of late-stage plans found 7 material problems the loop never saw. At least two were created by edits applied after the last round — one plan carried both a decision Atiba made and the text it replaced, contradicting itself in the section the builder reads first.
+- `plan_loop:` in the frontmatter records `approved-<date>-round-<N>, final check clean` (or `final check not needed — no body change`). A loop is not complete without that clause.
 
 ## Output to the user
 
-**At loop start:** one short line — "Starting plan-loop in <pause|auto> mode, max <N> rounds, plan: <path>".
+**At loop start:** one short line — "Starting plan-loop in <pause|auto> mode, runs until approved (size checkpoint at round <N>), plan: <path>".
 
 **Per round (pause mode):** show the reviewer's verdict + the structured summary described in step 5, then wait.
 
