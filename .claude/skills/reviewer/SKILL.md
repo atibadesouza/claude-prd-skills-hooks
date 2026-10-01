@@ -138,8 +138,9 @@ Measured on six long plans, 22% of findings after round 3 were this kind of form
 ### 4c. From round 4, review what changed
 
 When the brief names a **changes file** (a diff of the plan since you last reviewed it, Review log excluded):
+- **Still read the whole plan.** The changes file narrows what you may *raise*, not what you *read*.
 - **Review the changed text in full**, with every check above.
-- **Outside the changes, raise only an issue at 75 or 100** that carries its quoted line. Everything else outside the changes stays unsaid: it was read in earlier rounds.
+- **Outside the changes, you must still raise every issue at 75 or 100** that you can quote. Examples: two unchanged sections that contradict each other, a wrong date, a broken premise. These are the late catches that matter, and skipping them because they are outside the diff is a failed review. What stays unsaid outside the changes is only what would be a 50 or Housekeeping: it was read in earlier rounds.
 - No changes file, or an empty one, means a full review as usual.
 
 **Why:** a fresh reader of a 55,000-to-90,000-character plan can always find one more thing. On six long plans, 38 of the 39 real problems found after round 3 were already in the text by round 3, and the rest of the late findings were the loop's own churn.
