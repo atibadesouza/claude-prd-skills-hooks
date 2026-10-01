@@ -1,6 +1,6 @@
 ---
 name: plan-loop
-description: Orchestrate the plan ↔ reviewer loop in a single chat. Spawns the `reviewer` skill as a subagent, parses its verdict, revises the plan in place, and re-spawns until APPROVED or a stopping condition is hit. Defaults to pausing each round for human approval; pass `--auto` for autonomous revision. Interrupts the human on deadlock (the same point contested twice) or a scope change — not on a round number. Runs until APPROVED - the size number (small 2, standard 4, large 6) is a checkpoint, not a stop - then a final check re-reviews any text edited after approval. On standard and large plans the reviewer alternates by round: odd rounds are reviewed by OpenAI against an evidence pack of the files the plan cites, even rounds by the Claude subagent, and an OpenAI approval is never terminal — Claude confirms it once, outside the cap. Small plans stay Claude-only.
+description: Orchestrate the plan ↔ reviewer loop in a single chat. Spawns the `reviewer` skill as a subagent, parses its verdict, revises the plan in place, and re-spawns until APPROVED or a stopping condition is hit. Defaults to pausing each round for human approval; pass `--auto` for autonomous revision. Interrupts the human on deadlock (the same point contested twice) or a scope change — not on a round number. Runs until APPROVED - the size number (small 2, standard 4, large 6) is a checkpoint, not a stop - then a final check re-reviews any text edited after approval. On standard and large plans round 1 is read by both OpenAI and Claude, then the reviewer alternates by round: odd rounds OpenAI against an evidence pack of the files the plan cites, even rounds the Claude subagent, and an OpenAI approval is never terminal — Claude confirms it once, outside the cap. From round 4 each reviewer is given a diff of what changed and reviews that in full, the rest only at 75+. A review whose remaining issues are all advice counts as APPROVED. At round 8 one line suggests splitting the plan. Small plans stay Claude-only.
 argument-hint: [plan path | empty for latest docs/plans/*.md] [--auto] [--max=N] [--crossvendor=on|shadow|off] [--alternate=on|off]
 requires:
   - skill: reviewer
@@ -86,7 +86,7 @@ This replaced a flat round-4 checkpoint on 2026-08-17. The old rule fired on 41 
 
 Before spawning round 1 (in **both** modes), run this fast checklist against your own plan and fix what it surfaces. It is a self-check, not a gate — its output is edits to the plan, then round 1 proceeds. It catches the cheap, high-frequency errors that otherwise each cost a full review round (the five most common historical misses):
 
-0. **Size declared, and it decides everything below.** Put `plan_size: small | standard | large` in the frontmatter. **small** = one surface, one actor, reversible, no money and no data loss. **standard** = multiple surfaces or a persistent write path, still one actor. **large** = more than one actor, grants access, spends money, or can lose data. Under-declaring to dodge the gates is the failure this creates, so declare honestly — the reviewer checks the claim first and reviews at the real size if it is wrong. **On a `small` plan, skip steps 9 and the Actor Walk entirely and keep the Assumption Ledger to only genuinely unverified premises** (one row, not a table). Write four sections — Problem, Approach, Test Plan, and the frontmatter — and go. A one-surface reversible fix does not earn an eleven-section document; the median plan in this workspace hit 424 lines while its Approach averaged five.
+0. **Size declared, and it decides everything below.** Put `plan_size: small | standard | large` in the frontmatter. **small** = one surface, one actor, reversible, no money and no data loss. **standard** = multiple surfaces or a persistent write path, still one actor. **large** = a second **person** acts, grants access, spends money, can lose data that cannot be restored, or a step sends outside the team with no person approving each send. A scheduled job, a deployed function or the same person in another session is still an actor and still gets an Actor Walk, but alone it makes a plan **standard**, not large (2026-10-01). Under-declaring to dodge the gates is the failure this creates, so declare honestly — the reviewer checks the claim first and reviews at the real size if it is wrong. **On a `small` plan, skip steps 9 and the Actor Walk entirely and keep the Assumption Ledger to only genuinely unverified premises** (one row, not a table). Write four sections — Problem, Approach, Test Plan, and the frontmatter — and go. A one-surface reversible fix does not earn an eleven-section document; the median plan in this workspace hit 424 lines while its Approach averaged five.
 1. **Refs grounded** — you opened every file / table / column / function / API field the plan cites and confirmed it exists and behaves as claimed.
 2. **Reuse verified** — every "reuse / extend / inherit / already-wired existing X" claim is checked by reading X, and you are not reinventing something that already exists.
 2b. **Prior art on the GOAL, not just on the claims** — search `docs/plans/` for an existing plan that already owns this problem, before writing a line of approach. Grep the folder for the subject and skim any `exec_status: in-progress` plan in the same area; if one exists, this plan is a **continuation** — cite it, inherit its machinery, say why the new work is not already inside its phases, and add a back-link from the parent so the relationship is visible from both ends. _(2026-08-21: a plan to move scheduled jobs off the laptop went through **five** review rounds and was APPROVED before anyone noticed `2026-07-23-machine-independent-scheduling.md` — approved, in-progress, same subject — already existed. It proposed a new claims table that plan had already built. Every round checked whether the reuse claims the plan MADE were true; none asked whether someone had already planned the goal. Check 2 cannot catch this, because a plan that reinvents from scratch makes no reuse claims to falsify.)_
@@ -98,6 +98,7 @@ Before spawning round 1 (in **both** modes), run this fast checklist against you
 8. **No work staged into future days** — the plan is built in one sitting the moment it is approved, so strip every timeline out of it: no "Week 1 / Week 2", no "this takes three weeks", no phase whose start date is later than today, nothing held back because it is large or "should settle first". A step may wait **only** on something real that hasn't happened yet (a person must answer, a payment must clear, a deploy must finish, a live run must produce data the next step needs) — and then name the blocker in one line, name what clears it, and date the step to the **next check on the blocker**. Ordering is fine; appointments are not. (2026-08-08, Atiba: "I want to finish the plan, and I want to finish it right now.")
 9. **Scope baseline captured** *(`standard` and `large` only — skip on `small`)* — write the `## Scope Baseline` section into the plan (see "Scope-delta tracking" below) **before** round 1. Without it there is nothing to diff the loop's revisions against, and drift becomes invisible.
 10. **Routing named** — if the plan sends anything to a person (work, a card, a notification, an approval, a review), name who and say in one line why not someone else. Look the owner up in `docs/reference/page-authority.yaml`, the project roster, or the staff manifest — never infer it. **Routing to Atiba because a filter would otherwise hide the item is a defect, not a design**; that is precisely how a staff member's request to update her own document became a card on his personal board on 2026-08-17. If the plan routes nothing to a person, say that.
+11. **Decision plans get the business checklist** — on `type: decision`, write the goal and its numbers with a source each, an owner and date per step, who decides, and routing. Leave out retry protection, the test matrix and the Actor Walk except for a step that itself builds a mechanism or sends something automatically. The Test Plan is which number tells us it worked, read when, by whom. (2026-10-01: the Q4 sales plan ran 20 rounds partly on software checks applied to a business decision.)
 
 This is fast and round-saving. **Auto mode does NOT skip it.** Do not spawn the reviewer until you've run it and applied the fixes.
 
@@ -201,23 +202,46 @@ For each round (1, 2, 3, ...):
 
 **On `standard` and `large` plans, odd rounds (1, 3, 5) are reviewed by OpenAI and even rounds (2, 4, 6) by the Claude reviewer subagent.** Both write the identical `<plan>_review.md` file, so everything downstream — reading the file, parsing the verdict, the Review log, the drift table, the stopping conditions — is unchanged.
 
+**Round 1 is read by both (2026-10-01).** On `standard` and `large` plans, run the OpenAI review for round 1 as normal. If it exits `0`, copy `<plan>_review.md` to `r1-openai_review.md` in the plan's state folder (step 0b), **then also spawn the Claude reviewer** for round 1, which overwrites `_review.md`. Answer both in one Review-log entry, citing OpenAI findings by row id as usual. Combine the verdicts this way:
+- a Claude NEEDS CLARIFICATION stops the loop, as always;
+- otherwise either CHANGES REQUIRED makes round 1 CHANGES REQUIRED;
+- an OpenAI NEEDS CLARIFICATION is answered by Claude's same-round review: paste OpenAI's questions into the Claude brief so they are answered, not dropped.
+
+If OpenAI skips (exit `3`), round 1 is Claude alone, as before. Under `--alternate=off` or `--crossvendor=off`, round 1 is Claude alone. Under `--crossvendor=shadow`, round 1 already runs both, and Claude's verdict decides. **Why:** on six long plans, 38 of the 39 real problems found after round 3 were already in the text by round 3. Two readers in round 1 catch more of them than one (`docs/audits/2026-09-26-reviewer-model-bakeoff/README.md`: GPT-5.5 and DeepSeek together found 41 of 56 problems, one model alone at most 30).
+
 **`small` plans do not alternate.** Claude reviews every round, exactly as before (Atiba, 2026-08-28: *"small plans stay in claude"*). The script refuses a `small` plan on its own, so this is enforced rather than remembered.
 
 On an odd round, run:
 
 ```bash
-python ~/.claude/global/bin/crossvendor_review.py review <plan.md> --round <N>
+python ~/.claude/global/bin/crossvendor_review.py review <plan.md> --round <N> [--changes <state folder>/changes.diff]
 ```
+
+From round 4, pass `--changes` with the file from step 0b. If that file is missing the script exits `2`. Then review the round with Claude, and write "changes file missing, Claude full review" in the Review log so it is never mistaken for a vendor skip.
 
 **Read the exit code, not the output.**
 
-- **`0`** — the review was written to `<plan>_review.md`. Go to step 2 and read the file. **Do not also spawn the Claude subagent for this round.**
+- **`0`** — the review was written to `<plan>_review.md`. Go to step 2 and read the file. **Do not also spawn the Claude subagent for this round** — except round 1, which is read by both (above).
 - **`3`** — a loud skip. OpenAI could not run (no key, either ceiling, a cloud or Actions runner, an empty or unparseable reply, a failed write) **or it was refused because the evidence pack was short of what the plan points at** — a file outside the folders the review may read, one withheld for security, one that names several files, or a declared set too large to send. The message names each file and why. A handicapped reviewer is worse than no review at all (Atiba, 2026-09-07), so this outcome is the gate working, not a failure. **Spawn the Claude reviewer subagent for this same round**, exactly as on an even round, and record `reviewer: claude (openai skipped — <reason>)` in the Review log. The round still happens; nothing is left unreviewed.
 - **`2`** — a usage error (an even round, or a `small` plan). Spawn Claude.
 
 Under `--crossvendor=shadow`, run the OpenAI review with `--out <plan>_review.openai.md` **and** spawn the Claude subagent for that round. Claude's verdict drives the loop; the OpenAI review sits beside it for comparison. That is the mode to run for the first week.
 
 Under `--alternate=off` or `--crossvendor=off`, skip this step entirely — Claude reviews every round.
+
+### 0b. Save the reviewed copy, and from round 4 build the changes file
+
+Each plan's working files live in `~/.claude/plan-loop-state/<repo-name>/<plan-basename>/`. That folder is outside every repository, so nothing there is committed, listed in a plan ledger, or lost when the session ends.
+
+On every round, **in this order:**
+1. **From round 4,** if `last-reviewed.md` exists, write `changes.diff`: a unified diff from `last-reviewed.md` to the current plan, with everything from `## Review log` down left out of both sides. (`git diff --no-index` on two temporary copies cut at that heading is enough.)
+2. **Then** copy the current plan over `last-reviewed.md`. Doing step 2 first makes every diff empty.
+
+Then:
+- If there is no saved copy, or the diff is empty because nothing in the plan changed, the round is a full review. Write "no saved copy, full review" or "no changes, full review" in the Review log.
+- Otherwise name the file in the reviewer brief (step 1) and pass it to OpenAI (`--changes`). The reviewer reviews the changes in full, and the rest only at 75 or 100 with a quoted line (`reviewer/SKILL.md` §4c).
+
+**Why:** without this, every round is a fresh reader re-reading the whole plan. On a 55,000-to-90,000-character plan a fresh reader always finds one more thing.
 
 ### 1. Spawn the reviewer subagent
 
@@ -229,7 +253,7 @@ Skill({ skill: "reviewer", args: "<absolute-or-repo-relative plan path>" })
 
 But you cannot directly invoke another instance's skill. Instead, spawn a general-purpose subagent and instruct it to run the reviewer skill itself. Example prompt:
 
-> "Run the `reviewer` skill against the plan at `<path>`. **The `Skill` tool will refuse it — `reviewer` is deliberately set `disable-model-invocation: true`. That refusal is expected and is not a reason to review the plan your own way: open `~/.claude/skills/reviewer/SKILL.md`, read it in full, and work through its checklist as written, including every hard-block.** Produce the full review (Verdict, Issues, Hidden assumptions, Blindspots, Recommended course of action) and write it to `<path with _review suffix>` per the reviewer skill's contract. Report back with: (1) the verdict line verbatim, (2) the path you wrote the review to, (3) confirmation that you read `reviewer/SKILL.md` and applied its checklist. Do not edit any other file."
+> "Run the `reviewer` skill against the plan at `<path>`. **The `Skill` tool will refuse it — `reviewer` is deliberately set `disable-model-invocation: true`. That refusal is expected and is not a reason to review the plan your own way: open `~/.claude/skills/reviewer/SKILL.md`, read it in full, and work through its checklist as written, including every hard-block.** Produce the full review (Verdict, Issues, Hidden assumptions, Blindspots, Recommended course of action) and write it to `<path with _review suffix>` per the reviewer skill's contract. [From round 4, when step 0b produced one:] What changed since your last review is in `<state folder>/changes.diff`; review that in full and the rest only at 75 or 100 with a quoted line (§4c). Report back with: (1) the verdict line verbatim, (2) the path you wrote the review to, (3) confirmation that you read `reviewer/SKILL.md` and applied its checklist. Do not edit any other file."
 
 Use `subagent_type: "general-purpose"` so the subagent has access to file write tools (the `reviewer` skill writes the `_review.md` companion file).
 
@@ -265,7 +289,7 @@ Look for the `**Verdict:**` line near the top. It will contain one of:
   - If it approves, the loop ends and **every plan OpenAI approved has also been read by Claude**. Note both verdicts in the Review log.
   - This does not make every approved plan a two-vendor plan. Whenever OpenAI cannot run at all, Claude reviews every round and approves alone, exactly as before — the frontmatter stamp says `one-vendor (<reason>)` so a reader can tell. What this guarantees is narrower and is the part that matters: **OpenAI never approves a plan on its own.**
 
-- **Then, on a `large` plan — unless `--crossvendor=off` — the loop is NOT done yet.** Run the refutation pass before anything else, and do not treat the approval as terminal until that pass has been **resolved**:
+- **Then, on a plan with an actor besides the owner, or that grants access, spends money or can lose data — unless `--crossvendor=off` — the loop is NOT done yet.** (Until 2026-10-01 this read "on a `large` plan". Scheduled-job plans moved to standard that day, so the trigger is spelled out to keep the same plans in reach.) Run the refutation pass before anything else, and do not treat the approval as terminal until that pass has been **resolved**:
 
   ```bash
   python ~/.claude/global/bin/crossvendor_review.py refute <plan.md> --approval <plan>_review.md
@@ -277,7 +301,7 @@ Look for the `**Verdict:**` line near the top. It will contain one of:
   - **No refutation at 75 or above** — resolved. The approval stands. Continue below.
   - **A refutation at 75 or above** — **reopen the loop for exactly one more round.** That round is granted *outside* the size cap, because refusing it at the cap would disable the mechanism precisely on the hardest plans. Record the refutation in the Review log, revise, and re-review. If the re-approval is refuted again at 75+, that is stopping condition 8 — hand it to Atiba, do not grant a second reopen.
   - `--crossvendor=shadow` runs the pass and records everything but never reopens a round.
-  - On any plan that is not `large`, or with `--crossvendor=off`, APPROVED terminates exactly as it always has **once the confirmation round above has been satisfied**. Be precise about where the guarantee comes from on those sizes: no refutation runs at all on `small` or `standard`, so there the confirmation round is not one of two protections against a one-vendor approval — **it is the only one.**
+  - On any other plan, or with `--crossvendor=off`, APPROVED terminates exactly as it always has **once the confirmation round above has been satisfied**. Be precise about where the guarantee comes from on those sizes: no refutation runs at all on `small` or `standard`, so there the confirmation round is not one of two protections against a one-vendor approval — **it is the only one.**
   - The refutation reads the approving review's `**Reviewer:**` line rather than inferring the vendor from the round number, so it is vendor-opposite by construction. After the rule above, the approval that ends the loop is always Claude's, and the existing `refute` call already sends it to OpenAI. No selector, and no selector to get wrong.
 
 - Then: loop is done. Append a final entry to the plan's `## Review log` noting the round number and "Approved by reviewer". Refresh the `## New & Changed Functionality` section (section C above) — an APPROVED verdict does **not** exempt the loop from reporting drift; a reviewer approves correctness, not scope. Report to the user with the plan path, round count, and the drift rows first. Stop.
@@ -286,6 +310,13 @@ Look for the `**Verdict:**` line near the top. It will contain one of:
 - **From OpenAI, this is held exactly like an approval, and that is not a footnote.** The likeliest reason a reviewer with no filesystem cannot answer something is that the file was not in its evidence pack — and putting that in front of a person spends his attention on a question a reviewer who can open the file would simply have looked up. So an OpenAI `NEEDS CLARIFICATION` triggers the Claude confirmation round, carrying the questions with it. Claude answers what it can from disk and reviews normally. Only if **Claude** also needs the human does the loop stop and ask. A question that survives a reviewer who can open the files is a real question.
 - It also earns its keep as a measurement: an OpenAI clarification that Claude resolves by opening one file is a reading on the evidence pack. Log it as one and fix the pack, today, not at the monthly check.
 - **From Claude, unchanged:** the reviewer is asking the *human*, not you. Stop the loop regardless of mode. Show the user the reviewer's questions verbatim and wait for their answers. Do not attempt to answer the questions yourself — the reviewer already determined they require human input.
+
+**CHANGES REQUIRED — first check whether anything actually blocks (2026-10-01).** If every remaining issue under `## Issues` is either at confidence 50 or labelled `SCOPE-ADD (optional)`, the review is an approval with advice. A label is only honoured if the issue is not harm to someone outside the team, to money, or to unrecoverable data (`reviewer/SKILL.md`). This covers the OpenAI script, which keeps the model's original verdict after it demotes unquotable findings to 50.
+- Rewrite the review file's Verdict line to `**Verdict:** APPROVED (all remaining issues advisory)` before anything else reads it.
+- Then go to the **APPROVED** branch above. So an OpenAI review approved this way still gets Claude's confirmation round, and the refutation pass is never handed a file whose Verdict says CHANGES REQUIRED.
+- Take or leave the advice in the Review log as usual.
+
+Atiba, 2026-10-01: approve once only small points are left.
 
 **CHANGES REQUIRED:**
 - Read the full review (Issues, Hidden assumptions, Blindspots, Recommended course of action).
@@ -348,6 +379,7 @@ The loop stops when **any** of these is true:
 3. **Deadlock — the same point is contested twice.** If a point you recorded under `**Contested:**` in one round comes back in a later round and you still disagree, stop and put it to the human. **This is the primary reason to interrupt a person**, because it is the only one that is genuinely their call: two informed parties disagree and neither can settle it from the artifact.
 4. **A finding would change or cut what the plan delivers.** Any `SCOPE-CHANGE` or `SCOPE-CUT` finding stops the loop. `SCOPE-ADD (optional)` does not — decline it in the Review log and carry on.
 5. ~~Round count reached the cap~~ — **removed 2026-09-26. Not approved means not finished, so the loop continues.** At `small` **2**, `standard` **4**, `large` **6** (or `--max=N`) print one line — "Round N reached the size checkpoint, still CHANGES REQUIRED, continuing" — and spawn the next round. Never record a loop as ended with `cap-reached` in `plan_loop:`; that state no longer exists. What still ends a long loop is a real signal: deadlock (3), scope (4), thrash (6), or the user (7).
+5b. **Round 8 notice (not a stop).** At round 8, still CHANGES REQUIRED, print one line to the user: "Round 8, still CHANGES REQUIRED. This plan is probably too big; consider splitting it." Then continue. Atiba approved this line on 2026-10-01.
 6. **The reviewer is repeating itself** — if round N's review is substantively the same as round N-1's, the loop is thrashing. Stop and surface this to the user.
 7. **The user interrupts** (in pause mode, by saying "stop" / "don't apply" / etc.).
 8. **A cross-vendor refutation survives re-review** — the refutation pass reopened the loop once, the plan was re-approved, and the second vendor refuted the re-approval at 75 or above. Hand it to the human with both the refutation and the reviewer's position on the page. This is a *different* condition from 4: 4 is about what the plan delivers, 8 is about whether it is right.
@@ -363,6 +395,22 @@ It was replaced by conditions 3 and 4 on 2026-08-17, on measured evidence, not p
 ### Why the size cap no longer ends the loop (2026-09-26)
 
 Of ten plans traced round by round, **six ended at the cap without an approval** and one gave up at round 5 — so the plans that most needed review stopped getting it. On the four plans traced from before round 1, rounds 1–3 first raised 60 of the 67 material problems the loop found, but the 7 found in rounds 4–9 included a forged-sender email hole, a prompt edit that would have shipped as a no-op while failing 17 queued rows, articles that could publish before their own event, and new fields with no migration. A build does not catch those cheaply — they ship silently. Atiba: *"measure twice, cut once."* Evidence: `docs/audits/2026-09-26-reviewer-model-bakeoff/README.md` in the Atiba Projects workspace.
+
+### Why reviews were narrowed and the approval bar moved (2026-10-01)
+
+Once the cap was gone, the average rose from 3.3 rounds (June to mid-August) to 11.5 (26 Sep to 1 Oct), and 8 of 13 plans passed 10 rounds. The reviewer still approved only with "no outstanding issues", and nothing else ended the loop. An audit graded 440 findings from rounds 4 and later on six long plans:
+- 38% were problems an earlier round's fix had created;
+- 27% were minor;
+- 22% were form-filling;
+- 9% were real problems already in the text, nearly all of them there by round 3.
+
+Atiba approved four changes, plus approval once only small points remain:
+- both reviewers in round 1;
+- a diff-scoped review from round 4;
+- smallest fixes, with new machinery made optional;
+- thin sections not blocking after round 1, and the size and decision-plan labels fixed.
+
+"Run until approved" stands. Plan: `docs/plans/2026-10-01-plan-reviews-that-converge.md`; audit: https://claude.ai/artifact/854wf9jVqvVWKE7YJNXLPd.
 
 ## The final check — the text that gets built is the text that got reviewed
 
@@ -401,7 +449,7 @@ Auto mode without honest pushback collapses into the planner agreeing with every
 
 ## What you do NOT do
 
-- Do not edit any file other than the plan file and (transitively, via the subagent) the `_review.md` file.
+- Do not edit any file other than the plan file, (transitively, via the subagent) the `_review.md` file, and the plan's own working files in `~/.claude/plan-loop-state/` (step 0b).
 - Do not write code based on the plan. This skill orchestrates planning, not implementation.
 - Do not skip a deadlock checkpoint — a point contested twice, or a `SCOPE-CHANGE`/`SCOPE-CUT` finding, goes to the human before the next round. Do not substitute a round counter for this; the counter was measured and it interrupted 41 times in a month without asking a single business question.
 - Do not demand, or let the reviewer demand, a section the plan's `plan_size` does not require. On a `small` plan that means no Actor Walk, no Scope Baseline, no New & Changed table — see the size table in `reviewer/SKILL.md`.
