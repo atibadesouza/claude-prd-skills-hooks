@@ -8,6 +8,12 @@ allowed-tools: Bash,Read,Write
 
 Get text out of any video or audio, whether it's a URL or a file on disk.
 
+> **One version of the code (2026-10-07).** The automated copy of this skill's logic lives in the
+> Atiba Projects repo at `scripts/media_transcript.py` (captions first with one language and
+> spacing, because YouTube throttles caption bursts with HTTP 429; then faster-whisper locally).
+> The team library sync (`scripts/books_corpus.py`) uses it. When a fix is needed, make it there
+> and mirror it here, so the two never drift.
+
 ## Step 1: Route — URL or local file?
 
 Look at what the user gave you:
